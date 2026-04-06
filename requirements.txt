@@ -1,0 +1,9 @@
+anthropic
+python-telegram-bot==20.7
+supabase
+apscheduler==3.10.4
+pyyaml
+python-dotenv
+httpx
+pytest
+pytest-asyncio
