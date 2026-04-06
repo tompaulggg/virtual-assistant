@@ -1,36 +1,21 @@
 import pytest
-from lena.actions.ghostwriter import register, ACTIONS
+from lena.actions.ghostwriter import register, GHOSTWRITER_INSTRUCTIONS
 
 
-def test_register_returns_action_list():
+def test_register_returns_empty_list():
+    """Ghostwriting is handled via direct text responses, not actions."""
     actions = register()
-    names = [a["name"] for a in actions]
-    assert "ghostwrite" in names
-    assert "translate" in names
-    assert "correct" in names
+    assert actions == []
 
 
-def test_action_definitions_have_required_fields():
-    actions = register()
-    for action in actions:
-        assert "name" in action
-        assert "description" in action
-        assert "parameters" in action
-        assert "handler" in action
-        assert callable(action["handler"])
+def test_ghostwriter_instructions_exists():
+    """GHOSTWRITER_INSTRUCTIONS must be a non-empty string for system prompt injection."""
+    assert isinstance(GHOSTWRITER_INSTRUCTIONS, str)
+    assert len(GHOSTWRITER_INSTRUCTIONS) > 20
 
 
-@pytest.mark.asyncio
-async def test_ghostwrite_handler():
-    actions = register()
-    ghostwrite = next(a for a in actions if a["name"] == "ghostwrite")
-    assert ghostwrite["parameters"]["text"] == "string"
-    assert "tone" in ghostwrite["parameters"]
-
-
-@pytest.mark.asyncio
-async def test_translate_handler():
-    actions = register()
-    translate = next(a for a in actions if a["name"] == "translate")
-    assert "text" in translate["parameters"]
-    assert "target_language" in translate["parameters"]
+def test_ghostwriter_instructions_mention_key_tasks():
+    """Instructions should mention ghostwriting, translation, and correction."""
+    instructions_lower = GHOSTWRITER_INSTRUCTIONS.lower()
+    assert "ghostwrit" in instructions_lower or "text" in instructions_lower
+    assert "übersetz" in instructions_lower or "translat" in instructions_lower

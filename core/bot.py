@@ -41,12 +41,23 @@ class RateLimiter:
         return True
 
 
+def sanitize_input(text: str, max_length: int = 4000) -> str:
+    """Remove control characters (except newlines) and cap length."""
+    cleaned = "".join(c for c in text if c == "\n" or c.isprintable())
+    return cleaned[:max_length]
+
+
 class Bot:
     def __init__(self, brain: Brain, config: AssistantConfig):
         self.brain = brain
         self.config = config
         self.allowed_ids = os.getenv("ALLOWED_USER_IDS", "").split(",")
         self.rate_limiter = RateLimiter(max_per_minute=20)
+        self._app = ApplicationBuilder().token(os.getenv("TELEGRAM_TOKEN")).build()
+
+    def get_application(self):
+        """Return the Telegram Application instance (needed by the scheduler)."""
+        return self._app
 
     async def handle_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = str(update.effective_user.id)
@@ -80,7 +91,7 @@ class Bot:
             )
             return
 
-        text = update.message.text
+        text = sanitize_input(update.message.text)
         await update.message.chat.send_action("typing")
 
         try:
@@ -95,10 +106,9 @@ class Bot:
         await update.message.reply_text(response)
 
     def run(self):
-        app = ApplicationBuilder().token(os.getenv("TELEGRAM_TOKEN")).build()
-        app.add_handler(CommandHandler("start", self.handle_start))
-        app.add_handler(
+        self._app.add_handler(CommandHandler("start", self.handle_start))
+        self._app.add_handler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message)
         )
         logger.info(f"{self.config.name} ist online")
-        app.run_polling()
+        self._app.run_polling()

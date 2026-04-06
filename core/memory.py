@@ -29,15 +29,16 @@ class Memory:
             {"user_id": user_id, "role": "assistant", "content": assistant_msg},
         ]).execute()
 
-    def remember_fact(self, category: str, key: str, value: str):
+    def remember_fact(self, user_id: str, category: str, key: str, value: str):
         self.db.table("facts").upsert({
+            "user_id": user_id,
             "category": category,
             "key": key,
             "value": value,
         }).execute()
 
-    def recall_facts(self, category: str | None = None) -> list[dict]:
-        query = self.db.table("facts").select("*")
+    def recall_facts(self, user_id: str, category: str | None = None) -> list[dict]:
+        query = self.db.table("facts").select("*").eq("user_id", user_id)
         if category:
             query = query.eq("category", category)
         return query.execute().data

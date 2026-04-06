@@ -57,9 +57,12 @@ class TestFacts:
         mock_supabase.table.return_value = mock_table
         mock_table.upsert.return_value = mock_table
 
-        memory.remember_fact("person", "Mueller", "CEO bei Firma XY")
+        memory.remember_fact("user123", "person", "Mueller", "CEO bei Firma XY")
         mock_supabase.table.assert_called_with("facts")
-        mock_table.upsert.assert_called_once()
+        upsert_data = mock_table.upsert.call_args[0][0]
+        assert upsert_data["user_id"] == "user123"
+        assert upsert_data["category"] == "person"
+        assert upsert_data["key"] == "Mueller"
 
     def test_recall_facts_with_category(self, memory, mock_supabase):
         mock_table = MagicMock()
@@ -70,9 +73,20 @@ class TestFacts:
             {"category": "person", "key": "Mueller", "value": "CEO"}
         ])
 
-        facts = memory.recall_facts(category="person")
+        facts = memory.recall_facts(user_id="user123", category="person")
         assert len(facts) == 1
-        mock_table.eq.assert_called_with("category", "person")
+
+    def test_recall_facts_filters_by_user_id(self, memory, mock_supabase):
+        mock_table = MagicMock()
+        mock_supabase.table.return_value = mock_table
+        mock_table.select.return_value = mock_table
+        mock_table.eq.return_value = mock_table
+        mock_table.execute.return_value = MagicMock(data=[])
+
+        memory.recall_facts(user_id="user123")
+        # First .eq() call should be the user_id filter
+        first_call = mock_table.eq.call_args_list[0]
+        assert first_call[0] == ("user_id", "user123")
 
 
 class TestAuditLog:

@@ -13,6 +13,11 @@ class Brain:
         self.client = anthropic.Anthropic()
         self.memory = Memory()
         self.actions: dict[str, ActionDef] = {}
+        self.prompt_extensions: list[str] = []
+
+    def add_prompt_extension(self, text: str):
+        """Append extra instructions to the system prompt (e.g. from action modules)."""
+        self.prompt_extensions.append(text)
 
     def register_action(
         self,
@@ -58,6 +63,17 @@ class Brain:
             lines.append("")
             lines.append("Für normale Textantworten: einfach Text, kein JSON.")
 
+        if config.confirmation_actions:
+            lines.append("")
+            lines.append("## Bestätigungspflichtige Aktionen")
+            confirmation_list = ", ".join(config.confirmation_actions)
+            lines.append(
+                f"Für diese Aktionen IMMER zuerst den User fragen, bevor du sie ausführst: {confirmation_list}"
+            )
+
+        for extension in self.prompt_extensions:
+            lines.append(extension)
+
         return "\n".join(lines)
 
     async def process(self, message: str, user_id: str) -> str:
@@ -85,6 +101,8 @@ class Brain:
                     self.memory.save(user_id, message, result)
                     return result
 
+                # Inject user_id so all handlers have access to it
+                data["user_id"] = user_id
                 result = await action.handler(data)
                 self.memory.log_action(user_id, action_name, data)
                 self.memory.save(user_id, message, result)

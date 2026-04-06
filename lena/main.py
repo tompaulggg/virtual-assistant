@@ -34,6 +34,9 @@ def register_actions(brain: Brain):
                 handler=action_def["handler"],
             )
 
+    # Inject ghostwriter instructions as a prompt extension (not an action)
+    brain.add_prompt_extension(ghostwriter.GHOSTWRITER_INSTRUCTIONS)
+
     logger.info(f"Registered {len(brain.actions)} actions")
 
 
@@ -88,6 +91,10 @@ def main():
 
     bot = Bot(brain, config)
     scheduler = Scheduler()
+
+    # Wire up scheduler jobs before starting the bot
+    setup_scheduler(scheduler, bot.get_application())
+    scheduler.start()
 
     logger.info(f"{config.name} ist online")
     bot.run()

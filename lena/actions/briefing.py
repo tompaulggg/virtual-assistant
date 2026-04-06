@@ -27,7 +27,14 @@ async def build_morning_briefing(user_id: str, todo_store, reminder_store) -> st
 
 
 async def _briefing(data: dict) -> str:
-    return "Briefing wird erstellt... (Der Scheduler liefert das vollständige Morgen-Briefing automatisch um 7:30.)"
+    """On-demand briefing: generates a real briefing using live stores."""
+    from lena.actions.reminders import ReminderStore
+    from lena.actions.todos import TodoStore
+
+    user_id = data.get("user_id", "")
+    todo_store = TodoStore()
+    reminder_store = ReminderStore()
+    return await build_morning_briefing(user_id, todo_store, reminder_store)
 
 
 ACTIONS = [

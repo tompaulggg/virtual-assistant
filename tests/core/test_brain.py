@@ -71,6 +71,18 @@ class TestActionRegistration:
         assert "greet" in prompt
         assert "Greet someone" in prompt
 
+    def test_system_prompt_includes_confirmation_actions(self, brain):
+        prompt = brain._build_system_prompt()
+        # config fixture has "dangerous_action" in requires_confirmation
+        assert "dangerous_action" in prompt
+        assert "IMMER" in prompt
+
+    def test_add_prompt_extension(self, brain):
+        brain.add_prompt_extension("## Extra\nSome extra instruction")
+        prompt = brain._build_system_prompt()
+        assert "Extra" in prompt
+        assert "Some extra instruction" in prompt
+
 
 class TestProcessMessage:
     @pytest.mark.asyncio
@@ -97,7 +109,8 @@ class TestProcessMessage:
         with patch.object(brain.client.messages, "create", return_value=mock_response):
             result = await brain.process("Erstell einen Task", "user123")
 
-        handler.assert_called_once_with({"title": "Test Task"})
+        # user_id is injected into data before calling the handler
+        handler.assert_called_once_with({"title": "Test Task", "user_id": "user123"})
         assert result == "Task erstellt!"
         brain.memory.log_action.assert_called_once()
 
