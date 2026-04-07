@@ -7,8 +7,10 @@ import logging
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Python 3.14+ requires explicit event loop creation
-if not asyncio._get_running_loop():
+# Ensure event loop exists (needed for Python 3.12+ / APScheduler)
+try:
+    asyncio.get_event_loop()
+except RuntimeError:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
