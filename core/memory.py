@@ -1,8 +1,18 @@
 import os
 import logging
+import httpx
 from supabase import create_client
 
 logger = logging.getLogger(__name__)
+
+# Patch: force HTTP/1.1 globally to avoid StreamReset errors on Railway
+_original_client_init = httpx.Client.__init__
+
+def _patched_client_init(self, *args, **kwargs):
+    kwargs["http2"] = False
+    _original_client_init(self, *args, **kwargs)
+
+httpx.Client.__init__ = _patched_client_init
 
 
 class Memory:
