@@ -1,4 +1,4 @@
-"""Lena — Executive Assistant for Esther. Entry point."""
+"""Susi — Co-Founder Assistant for Thomas. Entry point."""
 
 import asyncio
 import os
@@ -12,7 +12,7 @@ if not asyncio._get_running_loop():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-# Add project root to path so core/ is importable
+# Add project root to path so core/ and lena/ are importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 load_dotenv()
@@ -21,17 +21,23 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
 )
-logger = logging.getLogger("lena")
+logger = logging.getLogger("susi")
 
 from core import AssistantConfig, Brain, Bot, Scheduler
+# Reuse shared actions from Lena
 from lena.actions import ghostwriter, todos, reminders, knowledge, briefing
+# Susi-specific actions
+from susi.actions import projects, ideas
 
 
 def register_actions(brain: Brain):
-    """Register all Lena actions with the brain."""
-    modules = [ghostwriter, todos, reminders, knowledge, briefing]
+    """Register all Susi actions with the brain."""
+    # Shared actions
+    shared = [ghostwriter, todos, reminders, knowledge, briefing]
+    # Susi-only actions
+    susi_only = [projects, ideas]
 
-    for module in modules:
+    for module in shared + susi_only:
         for action_def in module.register():
             brain.register_action(
                 name=action_def["name"],
@@ -40,21 +46,19 @@ def register_actions(brain: Brain):
                 handler=action_def["handler"],
             )
 
-    # Inject ghostwriter instructions as a prompt extension (not an action)
     brain.add_prompt_extension(ghostwriter.GHOSTWRITER_INSTRUCTIONS)
-
     logger.info(f"Registered {len(brain.actions)} actions")
 
 
 def setup_scheduler(scheduler: Scheduler, bot_instance):
-    """Register Lena's scheduled jobs."""
+    """Register Susi's scheduled jobs."""
     from lena.actions.reminders import ReminderStore
     from lena.actions.todos import TodoStore
     from lena.actions.briefing import build_morning_briefing
 
     reminder_store = ReminderStore()
     todo_store = TodoStore()
-    allowed_ids = os.getenv("ALLOWED_USER_IDS", "").split(",")
+    allowed_ids = os.getenv("SUSI_ALLOWED_USER_IDS", "").split(",")
 
     async def check_reminders():
         due = await reminder_store.get_due()
@@ -84,7 +88,7 @@ def setup_scheduler(scheduler: Scheduler, bot_instance):
                 logger.error(f"Failed to send briefing: {e}")
 
     scheduler.add_interval("reminder_check", check_reminders, seconds=60)
-    scheduler.add_cron("morning_briefing", morning_briefing, hour=7, minute=30)
+    scheduler.add_cron("morning_briefing", morning_briefing, hour=8, minute=0)
     logger.info("Scheduler jobs registered")
 
 
@@ -98,10 +102,8 @@ def main():
     bot = Bot(brain, config)
     scheduler = Scheduler()
 
-    # Wire up scheduler jobs before starting the bot
     setup_scheduler(scheduler, bot.get_application())
 
-    # Start scheduler inside the bot's event loop via post_init
     async def on_startup(application):
         scheduler.start()
         logger.info(f"{config.name} ist online")

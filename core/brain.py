@@ -33,7 +33,27 @@ class Brain:
             handler=handler,
         )
 
-    def _build_system_prompt(self) -> str:
+    def _build_knowledge_block(self, user_id: str) -> str:
+        """Load all stored knowledge about the user into a prompt section."""
+        entries = self.memory.get_all_knowledge(user_id)
+        if not entries:
+            return ""
+
+        lines = ["", "## Was ich über dich weiß"]
+        by_category: dict[str, list[str]] = {}
+        for e in entries:
+            cat = e["category"]
+            if cat not in by_category:
+                by_category[cat] = []
+            by_category[cat].append(f"- {e['key']}: {e['value']}")
+
+        for cat, items in by_category.items():
+            lines.append(f"\n### {cat.title()}")
+            lines.extend(items)
+
+        return "\n".join(lines)
+
+    def _build_system_prompt(self, user_id: str) -> str:
         config = self.config
         lines = [
             f"# {config.name} — Persönliche Assistentin",
@@ -48,6 +68,11 @@ class Brain:
         ]
         for rule in config.personality_rules:
             lines.append(f"- {rule}")
+
+        # Inject accumulated knowledge about the user
+        knowledge_block = self._build_knowledge_block(user_id)
+        if knowledge_block:
+            lines.append(knowledge_block)
 
         if self.actions:
             lines.append("")
@@ -76,6 +101,50 @@ class Brain:
 
         return "\n".join(lines)
 
+    async def _auto_learn(self, message: str, reply: str, user_id: str):
+        """Extract facts from the conversation and store them automatically."""
+        try:
+            extraction = self.client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=512,
+                system=(
+                    "Du extrahierst Fakten aus Gesprächen. "
+                    "Antworte NUR mit einem JSON-Array von Objekten, oder mit [] wenn nichts Relevantes.\n"
+                    "Jedes Objekt: {\"category\": \"...\", \"key\": \"...\", \"value\": \"...\"}\n\n"
+                    "Kategorien:\n"
+                    "- person (Name, Rolle, Beziehung, Kontaktinfos)\n"
+                    "- firma (Firmenname, Branche, Infos)\n"
+                    "- termin (wiederkehrende Termine, wichtige Daten)\n"
+                    "- vorliebe (Präferenzen, Gewohnheiten, Stil)\n"
+                    "- gewohnheit (Arbeitsrhythmus, Routinen)\n"
+                    "- kontakt (E-Mail, Telefon, Adresse)\n"
+                    "- notiz (alles andere Wichtige)\n\n"
+                    "Extrahiere NUR echte Fakten, keine Vermutungen. "
+                    "Ignoriere Smalltalk und Floskeln. "
+                    "Key = kurzer Bezeichner, Value = die konkrete Info."
+                ),
+                messages=[{
+                    "role": "user",
+                    "content": f"User: {message}\nAssistant: {reply}",
+                }],
+            )
+
+            text = extraction.content[0].text.strip()
+            if text.startswith("["):
+                facts = json.loads(text)
+                for fact in facts:
+                    if all(k in fact for k in ("category", "key", "value")):
+                        self.memory.store_knowledge(
+                            user_id,
+                            fact["category"],
+                            fact["key"],
+                            fact["value"],
+                        )
+                if facts:
+                    logger.info(f"Auto-learned {len(facts)} facts for user {user_id}")
+        except Exception as e:
+            logger.warning(f"Auto-learn failed: {e}")
+
     async def process(self, message: str, user_id: str) -> str:
         history = self.memory.get_history(user_id)
         history.append({"role": "user", "content": message})
@@ -83,7 +152,7 @@ class Brain:
         response = self.client.messages.create(
             model=self.config.model,
             max_tokens=self.config.max_tokens,
-            system=self._build_system_prompt(),
+            system=self._build_system_prompt(user_id),
             messages=history[-20:],
         )
 
@@ -106,9 +175,13 @@ class Brain:
                 result = await action.handler(data)
                 self.memory.log_action(user_id, action_name, data)
                 self.memory.save(user_id, message, result)
+                # Auto-learn from the exchange
+                await self._auto_learn(message, result, user_id)
                 return result
             except json.JSONDecodeError:
                 pass
 
         self.memory.save(user_id, message, reply)
+        # Auto-learn from the exchange
+        await self._auto_learn(message, reply, user_id)
         return reply

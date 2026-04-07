@@ -51,9 +51,9 @@ class Bot:
     def __init__(self, brain: Brain, config: AssistantConfig):
         self.brain = brain
         self.config = config
-        self.allowed_ids = os.getenv("ALLOWED_USER_IDS", "").split(",")
+        self.allowed_ids = os.getenv(config.allowed_user_ids_env, "").split(",")
         self.rate_limiter = RateLimiter(max_per_minute=20)
-        self._app = ApplicationBuilder().token(os.getenv("TELEGRAM_TOKEN")).build()
+        self._app = ApplicationBuilder().token(os.getenv(config.token_env)).build()
 
     def get_application(self):
         """Return the Telegram Application instance (needed by the scheduler)."""
@@ -68,12 +68,8 @@ class Bot:
             return
 
         await update.message.reply_text(
-            f"Hallo! Ich bin {self.config.name}, deine persönliche Assistentin.\n\n"
-            f"Du kannst mir einfach schreiben was du brauchst, zum Beispiel:\n"
-            f"• 'Schreib eine E-Mail an Herrn Müller'\n"
-            f"• 'Erinner mich morgen früh ans Meeting'\n"
-            f"• 'Was steht heute an?'\n\n"
-            f"Ich bin immer da!"
+            f"Hey {self.config.user_name}! Ich bin {self.config.name}.\n\n"
+            f"{self.config.greeting}"
         )
 
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):

@@ -26,6 +26,8 @@ class AssistantConfig:
     language: str
     model: str
     max_tokens: int
+    token_env: str
+    allowed_user_ids_env: str
     personality_style: str
     personality_rules: list[str]
     user_name: str
@@ -33,6 +35,7 @@ class AssistantConfig:
     user_context: str
     allowed_actions: list[str]
     confirmation_actions: list[str]
+    greeting: str
     morning_briefing: str
     reminder_check_interval: int
 
@@ -52,6 +55,8 @@ class AssistantConfig:
             language=assistant["language"],
             model=assistant["model"],
             max_tokens=assistant["max_tokens"],
+            token_env=assistant.get("token_env", "TELEGRAM_TOKEN"),
+            allowed_user_ids_env=assistant.get("allowed_user_ids_env", "ALLOWED_USER_IDS"),
             personality_style=personality["style"],
             personality_rules=personality["rules"],
             user_name=user["name"],
@@ -59,6 +64,7 @@ class AssistantConfig:
             user_context=user["context"],
             allowed_actions=permissions["allowed_without_asking"],
             confirmation_actions=permissions["requires_confirmation"],
+            greeting=data.get("greeting", f"Schreib mir einfach was du brauchst!"),
             morning_briefing=scheduler["morning_briefing"],
             reminder_check_interval=scheduler["reminder_check_interval_seconds"],
         )

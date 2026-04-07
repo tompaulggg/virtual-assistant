@@ -43,6 +43,25 @@ class Memory:
             query = query.eq("category", category)
         return query.execute().data
 
+    def get_all_knowledge(self, user_id: str, limit: int = 100) -> list[dict]:
+        result = (
+            self.db.table("knowledge")
+            .select("category, key, value")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return result.data
+
+    def store_knowledge(self, user_id: str, category: str, key: str, value: str):
+        self.db.table("knowledge").upsert({
+            "user_id": user_id,
+            "category": category,
+            "key": key,
+            "value": value,
+        }).execute()
+
     def log_action(self, user_id: str, action: str, details: dict | None = None):
         self.db.table("audit_log").insert({
             "user_id": user_id,
