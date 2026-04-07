@@ -2,5 +2,5 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "python start_all.py"
+startCommand = "python lena/main.py"
 restartPolicyType = "always"
