@@ -1,16 +1,12 @@
 """Reminders action — time-based and recurring reminders."""
 
-import os
 from datetime import datetime
-from supabase import create_client
+from core.db import get_supabase
 
 
 class ReminderStore:
     def __init__(self):
-        self.db = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_KEY"),
-        )
+        self.db = get_supabase()
 
     async def add(self, user_id: str, text: str, when: str, recurring: str | None = None) -> str:
         remind_at = datetime.fromisoformat(when)

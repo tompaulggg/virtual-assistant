@@ -1,15 +1,11 @@
 """Todo action — task CRUD with deadlines and priorities."""
 
-import os
-from supabase import create_client
+from core.db import get_supabase
 
 
 class TodoStore:
     def __init__(self):
-        self.db = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_KEY"),
-        )
+        self.db = get_supabase()
 
     async def add(self, user_id: str, title: str, due_date: str | None = None, priority: str = "normal") -> str:
         row = {

@@ -1,15 +1,11 @@
 """Projects action — track project status, updates, blockers."""
 
-import os
-from supabase import create_client
+from core.db import get_supabase
 
 
 class ProjectStore:
     def __init__(self):
-        self.db = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_KEY"),
-        )
+        self.db = get_supabase()
 
     async def update_status(self, user_id: str, project: str, status: str, notes: str = "") -> str:
         self.db.table("projects").upsert({

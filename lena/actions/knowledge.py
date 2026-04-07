@@ -1,15 +1,11 @@
 """Knowledge action — store and retrieve facts about people, companies, notes."""
 
-import os
-from supabase import create_client
+from core.db import get_supabase
 
 
 class KnowledgeStore:
     def __init__(self):
-        self.db = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_KEY"),
-        )
+        self.db = get_supabase()
 
     async def store(self, user_id: str, category: str, key: str, value: str) -> str:
         self.db.table("knowledge").upsert({

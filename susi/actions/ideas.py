@@ -1,15 +1,11 @@
 """Ideas action — capture, list, and prioritize ideas."""
 
-import os
-from supabase import create_client
+from core.db import get_supabase
 
 
 class IdeaStore:
     def __init__(self):
-        self.db = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_KEY"),
-        )
+        self.db = get_supabase()
 
     async def capture(self, user_id: str, idea: str, project: str = "") -> str:
         self.db.table("ideas").insert({
