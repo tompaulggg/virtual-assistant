@@ -1,6 +1,8 @@
 import os
+import io
 import time
 import logging
+import tempfile
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
@@ -101,10 +103,103 @@ class Bot:
 
         await update.message.reply_text(response)
 
+    async def handle_document(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = str(update.effective_user.id)
+
+        if not is_authorized(user_id, self.allowed_ids):
+            await update.message.reply_text(
+                "Hallo! Ich bin leider nur für bestimmte Personen verfügbar."
+            )
+            return
+
+        if not self.rate_limiter.check(user_id):
+            await update.message.reply_text(
+                "Du sendest gerade sehr viele Nachrichten. Warte kurz."
+            )
+            return
+
+        doc = update.message.document
+        file_name = doc.file_name or "dokument"
+        mime = doc.mime_type or ""
+
+        # Only handle PDFs and text files
+        supported = mime in (
+            "application/pdf",
+            "text/plain",
+            "text/html",
+            "text/csv",
+        ) or file_name.endswith((".pdf", ".txt", ".html", ".csv", ".md"))
+
+        if not supported:
+            await update.message.reply_text(
+                f"Ich kann leider '{file_name}' nicht lesen. "
+                "Schick mir PDFs, TXT, HTML oder CSV Dateien."
+            )
+            return
+
+        await update.message.chat.send_action("typing")
+        await update.message.reply_text(f"Lese '{file_name}'...")
+
+        try:
+            tg_file = await doc.get_file()
+            file_bytes = await tg_file.download_as_bytearray()
+
+            # Extract text from the file
+            if mime == "application/pdf" or file_name.endswith(".pdf"):
+                text_content = self._extract_pdf_text(bytes(file_bytes))
+            else:
+                text_content = bytes(file_bytes).decode("utf-8", errors="replace")
+
+            # Cap at 10000 chars for the prompt
+            if len(text_content) > 10000:
+                text_content = text_content[:10000] + "\n\n[... gekürzt, Dokument zu lang]"
+
+            # Build prompt with optional user caption
+            caption = update.message.caption or ""
+            if caption:
+                prompt = f"Dokument '{file_name}':\n\n{text_content}\n\nAuftrag: {caption}"
+            else:
+                prompt = (
+                    f"Dokument '{file_name}':\n\n{text_content}\n\n"
+                    "Fasse das Dokument zusammen und extrahiere die wichtigsten Punkte."
+                )
+
+            response = await self.brain.process(prompt, user_id)
+        except Exception as e:
+            logger.error(f"Document error: {e}")
+            response = (
+                f"Ich konnte '{file_name}' leider nicht verarbeiten. "
+                "Versuch's nochmal oder schick es als Text."
+            )
+
+        # Split long responses (Telegram max 4096 chars)
+        for i in range(0, len(response), 4000):
+            await update.message.reply_text(response[i:i+4000])
+
+    def _extract_pdf_text(self, pdf_bytes: bytes) -> str:
+        """Extract text from PDF bytes using PyPDF2."""
+        try:
+            import pypdf
+            reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
+            pages = []
+            for page in reader.pages:
+                text = page.extract_text()
+                if text:
+                    pages.append(text)
+            return "\n\n".join(pages) if pages else "[PDF enthält keinen lesbaren Text]"
+        except ImportError:
+            return "[PDF-Reader nicht installiert — bitte als Text schicken]"
+        except Exception as e:
+            logger.error(f"PDF extraction error: {e}")
+            return f"[PDF konnte nicht gelesen werden: {e}]"
+
     def run(self):
         self._app.add_handler(CommandHandler("start", self.handle_start))
         self._app.add_handler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message)
+        )
+        self._app.add_handler(
+            MessageHandler(filters.Document.ALL, self.handle_document)
         )
         logger.info(f"{self.config.name} ist online")
         self._app.run_polling()
