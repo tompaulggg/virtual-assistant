@@ -11,7 +11,7 @@ class Brain:
     def __init__(self, config: AssistantConfig):
         self.config = config
         self.client = anthropic.Anthropic()
-        self.memory = Memory()
+        self.memory = Memory(bot_name=config.name.lower())
         self.actions: dict[str, ActionDef] = {}
         self.prompt_extensions: list[str] = []
 
@@ -56,23 +56,26 @@ class Brain:
     def _build_system_prompt(self, user_id: str) -> str:
         config = self.config
         lines = [
-            f"# {config.name} — Persönliche Assistentin",
+            f"# {config.name}",
             "",
-            f"## Über {config.user_name}",
+            f"## WICHTIG: Du sprichst mit {config.user_name}. Nur mit {config.user_name}. Niemand anderem.",
+            f"Name des Users: {config.user_name}",
             f"Rolle: {config.user_role}",
             f"Kontext: {config.user_context}",
             "",
-            f"## Kommunikationsstil",
+            "## Kommunikationsstil",
             f"Stil: {config.personality_style}",
             "Regeln:",
         ]
         for rule in config.personality_rules:
             lines.append(f"- {rule}")
 
-        # Inject accumulated knowledge about the user
+        # Inject accumulated knowledge — this is critical for context
         knowledge_block = self._build_knowledge_block(user_id)
         if knowledge_block:
             lines.append(knowledge_block)
+            lines.append("")
+            lines.append("WICHTIG: Nutze das gespeicherte Wissen aktiv. Wenn der User etwas fragt das du weißt, bezieh dich darauf. Frag nicht nach Dingen die du schon weißt.")
 
         if self.actions:
             lines.append("")
@@ -158,30 +161,64 @@ class Brain:
 
         reply = response.content[0].text.strip()
 
-        if reply.startswith("{"):
-            try:
-                parsed = json.loads(reply)
-                action_name = parsed.get("action")
-                data = parsed.get("data", {})
+        # Try to find and execute an action JSON anywhere in the reply
+        action_result = await self._try_execute_action(reply, message, user_id)
+        if action_result is not None:
+            return action_result
 
+        self.memory.save(user_id, message, reply)
+        await self._auto_learn(message, reply, user_id)
+        return reply
+
+    async def _try_execute_action(self, reply: str, message: str, user_id: str) -> str | None:
+        """Extract and execute action JSON from reply. Returns result or None."""
+        import re
+
+        # Try to find JSON with "action" key — could be raw, in code block, or mixed with text
+        json_candidates = []
+
+        # Pattern 1: ```json ... ``` code block
+        for m in re.finditer(r'```(?:json)?\s*(\{.*?\})\s*```', reply, re.DOTALL):
+            json_candidates.append(m.group(1))
+
+        # Pattern 2: raw JSON starting with {"action"
+        for m in re.finditer(r'(\{"action".*?\})', reply, re.DOTALL):
+            json_candidates.append(m.group(1))
+
+        # Pattern 3: entire reply is JSON
+        if reply.startswith("{"):
+            json_candidates.insert(0, reply)
+
+        for candidate in json_candidates:
+            try:
+                parsed = json.loads(candidate)
+                action_name = parsed.get("action")
+                if not action_name:
+                    continue
+
+                data = parsed.get("data", {})
                 action = self.actions.get(action_name)
                 if not action:
                     result = f"Aktion '{action_name}' ist nicht verfügbar."
                     self.memory.save(user_id, message, result)
                     return result
 
-                # Inject user_id so all handlers have access to it
                 data["user_id"] = user_id
                 result = await action.handler(data)
                 self.memory.log_action(user_id, action_name, data)
-                self.memory.save(user_id, message, result)
-                # Auto-learn from the exchange
-                await self._auto_learn(message, result, user_id)
-                return result
-            except json.JSONDecodeError:
-                pass
 
-        self.memory.save(user_id, message, reply)
-        # Auto-learn from the exchange
-        await self._auto_learn(message, reply, user_id)
-        return reply
+                # If there was text before/after the JSON, include it
+                text_parts = reply.replace(candidate, "").strip()
+                text_parts = re.sub(r'```json\s*```', '', text_parts).strip()
+                if text_parts:
+                    full_reply = f"{text_parts}\n\n{result}"
+                else:
+                    full_reply = result
+
+                self.memory.save(user_id, message, full_reply)
+                await self._auto_learn(message, full_reply, user_id)
+                return full_reply
+            except (json.JSONDecodeError, KeyError):
+                continue
+
+        return None
