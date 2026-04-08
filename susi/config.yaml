@@ -50,6 +50,9 @@ permissions:
     - briefing
     - projects
     - ideas
+    - channel_submit
+    - channel_status
+    - channel_aufbau
   requires_confirmation:
     - send_email
     - delete_data

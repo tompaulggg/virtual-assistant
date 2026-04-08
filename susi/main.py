@@ -29,7 +29,7 @@ from core import AssistantConfig, Brain, Bot, Scheduler
 # Reuse shared actions from Lena
 from lena.actions import ghostwriter, todos, reminders, knowledge, briefing
 # Susi-specific actions
-from susi.actions import projects, ideas
+from susi.actions import projects, ideas, claudia_bridge
 
 
 def register_actions(brain: Brain):
@@ -37,7 +37,7 @@ def register_actions(brain: Brain):
     # Shared actions
     shared = [ghostwriter, todos, reminders, knowledge, briefing]
     # Susi-only actions
-    susi_only = [projects, ideas]
+    susi_only = [projects, ideas, claudia_bridge]
 
     for module in shared + susi_only:
         for action_def in module.register():
@@ -108,6 +108,8 @@ def main():
 
     async def on_startup(application):
         scheduler.start()
+        # Give claudia_bridge access to the telegram bot for async result delivery
+        claudia_bridge.set_telegram_bot(application.bot)
         logger.info(f"{config.name} ist online")
 
     bot.get_application().post_init = on_startup
