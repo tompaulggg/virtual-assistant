@@ -5,19 +5,15 @@ from core.memory import Memory
 
 @pytest.fixture
 def mock_supabase():
-    with patch("core.memory.create_client") as mock_create:
-        mock_db = MagicMock()
-        mock_create.return_value = mock_db
+    mock_db = MagicMock()
+    with patch("core.memory.get_supabase", return_value=mock_db), \
+         patch("core.memory.embed_text", return_value=None):
         yield mock_db
 
 
 @pytest.fixture
 def memory(mock_supabase):
-    with patch.dict("os.environ", {
-        "SUPABASE_URL": "https://test.supabase.co",
-        "SUPABASE_KEY": "test-key",
-    }):
-        return Memory()
+    return Memory()
 
 
 class TestConversations:

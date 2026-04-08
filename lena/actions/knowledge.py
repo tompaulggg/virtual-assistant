@@ -1,22 +1,34 @@
 """Knowledge action — store and retrieve facts about people, companies, notes."""
 
 from core.db import get_supabase
+from core.memory import Memory
+from core.embeddings import embed_text
 
 
 class KnowledgeStore:
     def __init__(self):
         self.db = get_supabase()
+        self.memory = Memory()
 
     async def store(self, user_id: str, category: str, key: str, value: str) -> str:
-        self.db.table("knowledge").upsert({
-            "user_id": user_id,
-            "category": category,
-            "key": key,
-            "value": value,
-        }).execute()
+        self.memory.store_knowledge(user_id, category, key, value)
         return f"Gemerkt: {key} ({category}) — {value}"
 
     async def retrieve(self, user_id: str, search: str) -> str:
+        # Try semantic search first
+        results = self.memory.search_knowledge_semantic(user_id, search)
+
+        if results:
+            lines = [f"Gefunden zu '{search}':\n"]
+            for entry in results:
+                score = entry.get("similarity", 0)
+                lines.append(
+                    f"[{entry['category']}] {entry['key']}: {entry['value']}"
+                    f" ({score:.0%} relevant)"
+                )
+            return "\n".join(lines)
+
+        # Fallback to ILIKE substring search
         result = (
             self.db.table("knowledge")
             .select("category, key, value")

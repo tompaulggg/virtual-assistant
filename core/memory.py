@@ -1,5 +1,6 @@
 import logging
 from core.db import get_supabase
+from core.embeddings import embed_text
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ class Memory:
         return query.execute().data
 
     def get_all_knowledge(self, user_id: str, limit: int = 100) -> list[dict]:
+        """Fallback: load all knowledge ordered by recency."""
         result = (
             self.db.table("knowledge")
             .select("category, key, value")
@@ -56,12 +58,58 @@ class Memory:
         return result.data
 
     def store_knowledge(self, user_id: str, category: str, key: str, value: str):
+        """Upsert a fact and generate its embedding for semantic search."""
         self.db.table("knowledge").upsert({
             "user_id": user_id,
             "category": category,
             "key": key,
             "value": value,
         }).execute()
+
+        # Generate and store embedding
+        text_to_embed = f"{category}: {key} — {value}"
+        vector = embed_text(text_to_embed)
+        if vector:
+            try:
+                self.db.table("knowledge").update({
+                    "embedding": vector,
+                }).eq("user_id", user_id).eq(
+                    "category", category
+                ).eq("key", key).execute()
+            except Exception as e:
+                logger.warning(f"Failed to store embedding: {e}")
+
+    def search_knowledge_semantic(
+        self, user_id: str, query: str, limit: int = 12
+    ) -> list[dict]:
+        """Semantic search: embed query and find most similar facts via pgvector."""
+        vector = embed_text(query)
+        if not vector:
+            return []
+
+        try:
+            result = self.db.rpc("match_knowledge", {
+                "query_embedding": vector,
+                "match_user_id": user_id,
+                "match_threshold": 0.3,
+                "match_count": limit,
+            }).execute()
+            return result.data or []
+        except Exception as e:
+            logger.warning(f"Semantic search failed: {e}")
+            return []
+
+    def get_recent_knowledge(self, user_id: str, limit: int = 5) -> list[dict]:
+        """Get the N most recently created/updated facts."""
+        result = (
+            self.db.table("knowledge")
+            .select("id, category, key, value")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return result.data
 
     def log_action(self, user_id: str, action: str, details: dict | None = None):
         self.db.table("audit_log").insert({

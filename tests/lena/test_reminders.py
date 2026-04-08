@@ -5,19 +5,14 @@ from lena.actions.reminders import register, ReminderStore
 
 @pytest.fixture
 def mock_db():
-    with patch("lena.actions.reminders.create_client") as mock_create:
-        mock_client = MagicMock()
-        mock_create.return_value = mock_client
+    mock_client = MagicMock()
+    with patch("lena.actions.reminders.get_supabase", return_value=mock_client):
         yield mock_client
 
 
 @pytest.fixture
 def store(mock_db):
-    with patch.dict("os.environ", {
-        "SUPABASE_URL": "https://test.supabase.co",
-        "SUPABASE_KEY": "test-key",
-    }):
-        return ReminderStore()
+    return ReminderStore()
 
 
 class TestReminderStore:

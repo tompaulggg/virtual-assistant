@@ -5,19 +5,14 @@ from lena.actions.todos import register, TodoStore
 
 @pytest.fixture
 def mock_db():
-    with patch("lena.actions.todos.create_client") as mock_create:
-        mock_client = MagicMock()
-        mock_create.return_value = mock_client
+    mock_client = MagicMock()
+    with patch("lena.actions.todos.get_supabase", return_value=mock_client):
         yield mock_client
 
 
 @pytest.fixture
 def store(mock_db):
-    with patch.dict("os.environ", {
-        "SUPABASE_URL": "https://test.supabase.co",
-        "SUPABASE_KEY": "test-key",
-    }):
-        return TodoStore()
+    return TodoStore()
 
 
 class TestTodoStore:

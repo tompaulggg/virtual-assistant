@@ -67,19 +67,19 @@ class TestActionRegistration:
             return "ok"
 
         brain.register_action("greet", "Greet someone", {"name": "string"}, handler)
-        prompt = brain._build_system_prompt()
+        prompt = brain._build_system_prompt("test_user")
         assert "greet" in prompt
         assert "Greet someone" in prompt
 
     def test_system_prompt_includes_confirmation_actions(self, brain):
-        prompt = brain._build_system_prompt()
+        prompt = brain._build_system_prompt("test_user")
         # config fixture has "dangerous_action" in requires_confirmation
         assert "dangerous_action" in prompt
         assert "IMMER" in prompt
 
     def test_add_prompt_extension(self, brain):
         brain.add_prompt_extension("## Extra\nSome extra instruction")
-        prompt = brain._build_system_prompt()
+        prompt = brain._build_system_prompt("test_user")
         assert "Extra" in prompt
         assert "Some extra instruction" in prompt
 

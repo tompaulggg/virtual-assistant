@@ -33,9 +33,59 @@ class Brain:
             handler=handler,
         )
 
-    def _build_knowledge_block(self, user_id: str) -> str:
-        """Load all stored knowledge about the user into a prompt section."""
-        entries = self.memory.get_all_knowledge(user_id)
+    def _build_knowledge_block(self, user_id: str, message: str = "") -> str:
+        """Load relevant knowledge via semantic search + recent facts."""
+        if not message:
+            return self._build_knowledge_block_fallback(user_id)
+
+        # Semantic search for relevant facts
+        semantic_results = self.memory.search_knowledge_semantic(user_id, message)
+        # Always include recent facts
+        recent_results = self.memory.get_recent_knowledge(user_id)
+
+        # If semantic search returned nothing, fall back to old behavior
+        if not semantic_results and not recent_results:
+            return self._build_knowledge_block_fallback(user_id)
+
+        # Merge and deduplicate by (category, key)
+        seen = set()
+        merged = []
+
+        for entry in semantic_results:
+            ck = (entry["category"], entry["key"])
+            if ck not in seen:
+                seen.add(ck)
+                merged.append(entry)
+
+        for entry in recent_results:
+            ck = (entry["category"], entry["key"])
+            if ck not in seen:
+                seen.add(ck)
+                merged.append(entry)
+
+        # Cap at 20
+        merged = merged[:20]
+
+        if not merged:
+            return ""
+
+        lines = ["", "## Was ich über dich weiß"]
+        by_category: dict[str, list[str]] = {}
+        for e in merged:
+            cat = e["category"]
+            if cat not in by_category:
+                by_category[cat] = []
+            by_category[cat].append(f"- {e['key']}: {e['value']}")
+
+        for cat, items in by_category.items():
+            lines.append(f"\n### {cat.title()}")
+            lines.extend(items)
+
+        return "\n".join(lines)
+
+    def _build_knowledge_block_fallback(self, user_id: str) -> str:
+        """Fallback: load all knowledge (old behavior, used when no embeddings)."""
+        entries = self.memory.get_all_knowledge(user_id, limit=20)
         if not entries:
             return ""
 
@@ -53,7 +103,7 @@ class Brain:
 
         return "\n".join(lines)
 
-    def _build_system_prompt(self, user_id: str) -> str:
+    def _build_system_prompt(self, user_id: str, message: str = "") -> str:
         config = self.config
         lines = [
             f"# {config.name}",
@@ -70,8 +120,8 @@ class Brain:
         for rule in config.personality_rules:
             lines.append(f"- {rule}")
 
-        # Inject accumulated knowledge — this is critical for context
-        knowledge_block = self._build_knowledge_block(user_id)
+        # Inject relevant knowledge — semantic search + recent facts
+        knowledge_block = self._build_knowledge_block(user_id, message)
         if knowledge_block:
             lines.append(knowledge_block)
             lines.append("")
@@ -155,7 +205,7 @@ class Brain:
         response = self.client.messages.create(
             model=self.config.model,
             max_tokens=self.config.max_tokens,
-            system=self._build_system_prompt(user_id),
+            system=self._build_system_prompt(user_id, message=message),
             messages=history[-20:],
         )
 
