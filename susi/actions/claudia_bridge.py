@@ -112,6 +112,32 @@ async def _poll_for_result(channel_id: str, channel_name: str, user_id: str):
     _poll_tasks.pop(channel_id, None)
 
 
+async def _resolve_channel_id(url: str) -> tuple[str, str] | None:
+    """Resolve YouTube URL to (channel_id, channel_title) via yt-dlp."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["yt-dlp", "--print", "channel_id", "--print", "channel",
+             "--playlist-items", "0", url],
+            capture_output=True, text=True, timeout=20,
+        )
+        lines = result.stdout.strip().split("\n")
+        if len(lines) >= 2 and lines[0].startswith("UC"):
+            return lines[0].strip(), lines[1].strip()
+        # Fallback: try with --flat-playlist
+        result2 = subprocess.run(
+            ["yt-dlp", "--flat-playlist", "--print", "channel_id",
+             "--print", "channel", "--playlist-end", "1", url],
+            capture_output=True, text=True, timeout=20,
+        )
+        lines2 = result2.stdout.strip().split("\n")
+        if len(lines2) >= 2 and lines2[0].startswith("UC"):
+            return lines2[0].strip(), lines2[1].strip()
+    except Exception as e:
+        logger.warning(f"yt-dlp resolve failed: {e}")
+    return None
+
+
 async def _channel_submit(data: dict) -> str:
     """Submit a YouTube channel to Claudia for CYO analysis."""
     url = data.get("url", "").strip()
@@ -121,35 +147,40 @@ async def _channel_submit(data: dict) -> str:
         return "Ich brauch einen YouTube-Link, z.B. youtube.com/@Felunee"
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            # Step 1: Add channel to Mission Control
-            add_resp = await client.post(
-                f"{MC_URL}/api/meta/channels/add",
-                json={"url": url},
-            )
+        # Step 1: Resolve YouTube channel ID via yt-dlp
+        resolved = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: asyncio.run(_resolve_channel_id(url))
+        )
 
-            if add_resp.status_code != 200:
-                return f"Claudia konnte den Channel nicht hinzufügen (HTTP {add_resp.status_code})"
-
-            add_data = add_resp.json()
-            channel = add_data.get("channel", {})
-            channel_id = channel.get("id", channel.get("channel_id", ""))
-            channel_name = channel.get("name", url)
-
-            if not channel_id:
-                return "Channel wurde gespeichert, aber ich konnte keine ID bekommen."
-
-            # Step 2: Trigger CYO analysis
-            analyze_resp = await client.post(
-                f"{MC_URL}/api/meta/channels/{channel_id}/analyze",
-            )
-
-            if analyze_resp.status_code != 200:
-                return (
-                    f"Channel '{channel_name}' wurde gespeichert, aber die Analyse "
-                    f"konnte nicht gestartet werden (HTTP {analyze_resp.status_code}). "
-                    f"Sag Claudia direkt Bescheid."
+        if not resolved:
+            # Fallback: try sync approach without async wrapper
+            import subprocess
+            try:
+                result = subprocess.run(
+                    ["yt-dlp", "--print", "channel_id", "--print", "channel",
+                     "--playlist-items", "0", url],
+                    capture_output=True, text=True, timeout=20,
                 )
+                lines = result.stdout.strip().split("\n")
+                if len(lines) >= 2 and lines[0].startswith("UC"):
+                    resolved = (lines[0].strip(), lines[1].strip())
+            except Exception:
+                pass
+
+        if not resolved:
+            return f"Konnte den Channel nicht auflösen. Ist der Link korrekt? ({url})"
+
+        channel_id, channel_name = resolved
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # Step 2: Sync channel to Mission Control (uses real YouTube ID)
+            sync_resp = await client.post(
+                f"{MC_URL}/api/meta/channels/sync",
+                json={"channel_id": channel_id, "title": channel_name},
+            )
+
+            if sync_resp.status_code != 200:
+                return f"Claudia konnte den Channel nicht verarbeiten (HTTP {sync_resp.status_code})"
 
             # Step 3: Start background polling
             if channel_id not in _poll_tasks:
