@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Vision — Virtual Assistant Platform</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: #0a0a0f;
+    color: #e0e0e8;
+    line-height: 1.7;
+    padding: 60px 80px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 60px;
+    padding-bottom: 40px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .header .label {
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #6366f1;
+    font-weight: 600;
+    margin-bottom: 16px;
+  }
+
+  h1 {
+    font-size: 38px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 12px;
+  }
+
+  .subtitle {
+    font-size: 18px;
+    color: #9ca3af;
+    font-weight: 300;
+  }
+
+  .meta {
+    margin-top: 20px;
+    font-size: 13px;
+    color: #6b7280;
+  }
+
+  h2 {
+    font-size: 22px;
+    font-weight: 700;
+    color: #f3f4f6;
+    margin-top: 50px;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #6366f1;
+    display: inline-block;
+  }
+
+  h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #a78bfa;
+    margin-top: 30px;
+    margin-bottom: 12px;
+  }
+
+  p { margin-bottom: 14px; color: #d1d5db; font-size: 15px; }
+
+  .vision-box {
+    background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(139,92,246,0.05));
+    border: 1px solid rgba(99,102,241,0.2);
+    border-radius: 12px;
+    padding: 30px;
+    margin: 30px 0;
+  }
+
+  .vision-box p {
+    font-size: 17px;
+    color: #e5e7eb;
+    font-style: italic;
+    line-height: 1.8;
+  }
+
+  .agents-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 24px 0;
+  }
+
+  .agent-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 20px;
+  }
+
+  .agent-card .name {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .agent-card .role {
+    font-size: 13px;
+    color: #9ca3af;
+    margin-bottom: 10px;
+  }
+
+  .agent-card .pilot {
+    font-size: 12px;
+    color: #6366f1;
+    font-weight: 500;
+  }
+
+  .agent-card ul { padding-left: 16px; margin-top: 10px; }
+  .agent-card li { font-size: 13px; color: #9ca3af; margin-bottom: 4px; }
+
+  .lena { border-left: 3px solid #f472b6; }
+  .susi { border-left: 3px solid #6366f1; }
+  .arzt { border-left: 3px solid #34d399; }
+  .future { border-left: 3px solid #fbbf24; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 14px;
+  }
+
+  th {
+    text-align: left;
+    padding: 12px 16px;
+    background: rgba(99,102,241,0.15);
+    color: #a78bfa;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  td {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    color: #d1d5db;
+  }
+
+  .phase-label {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .p1 { background: rgba(99,102,241,0.2); color: #818cf8; }
+  .p2 { background: rgba(139,92,246,0.2); color: #a78bfa; }
+  .p3 { background: rgba(244,114,182,0.2); color: #f472b6; }
+
+  .arch-diagram {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 24px;
+    font-family: 'JetBrains Mono', monospace, 'Courier New';
+    font-size: 13px;
+    line-height: 1.6;
+    color: #9ca3af;
+    white-space: pre;
+    overflow-x: auto;
+    margin: 20px 0;
+  }
+
+  .highlight { color: #6366f1; font-weight: 600; }
+  .green { color: #34d399; }
+  .pink { color: #f472b6; }
+  .amber { color: #fbbf24; }
+
+  .business-model {
+    background: rgba(52,211,153,0.05);
+    border: 1px solid rgba(52,211,153,0.15);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 24px 0;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin: 24px 0;
+  }
+
+  .stat {
+    text-align: center;
+    padding: 20px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .stat .number {
+    font-size: 28px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #6366f1, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .stat .label {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 4px;
+  }
+
+  .timeline {
+    position: relative;
+    margin: 30px 0;
+    padding-left: 30px;
+    border-left: 2px solid rgba(99,102,241,0.3);
+  }
+
+  .timeline-item {
+    margin-bottom: 24px;
+    position: relative;
+  }
+
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -35px;
+    top: 6px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #6366f1;
+  }
+
+  .timeline-item .time {
+    font-size: 12px;
+    color: #6366f1;
+    font-weight: 600;
+  }
+
+  .timeline-item .title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #f3f4f6;
+    margin-top: 4px;
+  }
+
+  .timeline-item .desc {
+    font-size: 13px;
+    color: #9ca3af;
+    margin-top: 4px;
+  }
+
+  .footer {
+    margin-top: 60px;
+    padding-top: 30px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    text-align: center;
+    color: #4b5563;
+    font-size: 12px;
+  }
+
+  @media print {
+    body { background: white; color: #1a1a2e; padding: 40px; }
+    h1 { background: none; -webkit-text-fill-color: #4f46e5; color: #4f46e5; }
+    h2 { color: #1e1b4b; border-bottom-color: #4f46e5; }
+    h3 { color: #4f46e5; }
+    .header .label { color: #4f46e5; }
+    .subtitle { color: #6b7280; }
+    .vision-box { background: #f5f3ff; border-color: #c4b5fd; }
+    .vision-box p { color: #1e1b4b; }
+    .agent-card { background: #fafafa; border-color: #e5e7eb; }
+    .agent-card .name { color: #111827; }
+    .agent-card .role { color: #4b5563; }
+    .agent-card .pilot { color: #4f46e5; }
+    .agent-card li { color: #374151; }
+    .lena { border-left-color: #ec4899; }
+    .susi { border-left-color: #4f46e5; }
+    .arzt { border-left-color: #10b981; }
+    .future { border-left-color: #f59e0b; }
+    .stat { background: #f5f3ff; border-color: #e5e7eb; }
+    .stat .number { background: none; -webkit-text-fill-color: #4f46e5; color: #4f46e5; }
+    .stat .label { color: #4b5563; }
+    .arch-diagram { background: #f9fafb; border-color: #e5e7eb; color: #374151; }
+    .highlight { color: #4f46e5; }
+    .green { color: #059669; }
+    .pink { color: #db2777; }
+    .amber { color: #d97706; }
+    .business-model { background: #ecfdf5; border-color: #a7f3d0; }
+    .business-model p { color: #1e1b4b; }
+    .business-model h3 { color: #059669; }
+    p, td, li, .desc { color: #374151; }
+    .timeline-item .title { color: #111827; }
+    .timeline-item .time { color: #4f46e5; }
+    th { background: #ede9fe; color: #4f46e5; }
+    td { border-bottom-color: #e5e7eb; }
+    .timeline { border-left-color: #4f46e5; }
+    .timeline-item::before { background: #4f46e5; }
+    .phase-label.p1 { background: #ede9fe; color: #4338ca; }
+    .phase-label.p2 { background: #f3e8ff; color: #7c3aed; }
+    .phase-label.p3 { background: #fce7f3; color: #be185d; }
+    .footer { color: #9ca3af; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="label">Produktvision</div>
+  <h1>Virtual Assistant Platform</h1>
+  <div class="subtitle">AI-Assistenten die alles erledigen. Von uberall. Jederzeit.</div>
+  <div class="meta">Thomas Gaeta &middot; April 2026 &middot; Version 1.0</div>
+</div>
+
+<div class="vision-box">
+  <p>"Ich will immer und von uberall mit meinen Assistenten kommunizieren konnen. Ich sage was ich brauche — und sie erledigen es. Egal ob E-Mail, Recherche, Prasentationen oder Projektmanagement. Kein Laptop notig. Nur Telegram."</p>
+</div>
+
+<h2>Die Idee</h2>
+
+<p>Eine SaaS-Plattform fur AI-Assistenten — jeweils spezialisiert auf eine Berufsgruppe. Jeder Assistent hat eine eigene Personlichkeit, kennt seinen Nutzer und wird mit jeder Interaktion schlauer. Gemeinsamer technischer Kern, vertikale Spezialisierung.</p>
+
+<div class="stats">
+  <div class="stat">
+    <div class="number">1</div>
+    <div class="label">Shared Core</div>
+  </div>
+  <div class="stat">
+    <div class="number">&infin;</div>
+    <div class="label">Verticals</div>
+  </div>
+  <div class="stat">
+    <div class="number">24/7</div>
+    <div class="label">Verfugbar</div>
+  </div>
+</div>
+
+<h2>Die Assistenten</h2>
+
+<div class="agents-grid">
+  <div class="agent-card lena">
+    <div class="name">Lena</div>
+    <div class="role">Executive Assistant</div>
+    <div class="pilot">Pilot: Esther (Rechte Hand des Vorstands)</div>
+    <ul>
+      <li>E-Mails lesen, verstehen, beantworten</li>
+      <li>Kalender & Meeting-Vorbereitung</li>
+      <li>Protokolle & Follow-ups</li>
+      <li>PDF-Erstellung (Berichte, Businessplane)</li>
+      <li>Recherche & Kontaktmanagement</li>
+    </ul>
+  </div>
+
+  <div class="agent-card susi">
+    <div class="name">Susi</div>
+    <div class="role">Co-Founder Assistant</div>
+    <div class="pilot">Pilot: Thomas (Solo-Grunder)</div>
+    <ul>
+      <li>Projekt-Tracking & Accountability</li>
+      <li>Business-Sparring & Strategie</li>
+      <li>Ideen einfangen & priorisieren</li>
+      <li>E-Mail & Kalender Integration</li>
+      <li>Ghostwriting & Recherche</li>
+    </ul>
+  </div>
+
+  <div class="agent-card arzt">
+    <div class="name">Arzt-Assistent</div>
+    <div class="role">AI Office Manager</div>
+    <div class="pilot">Zielgruppe: Zahnarztpraxen AT</div>
+    <ul>
+      <li>Telefon-Agent (ElevenLabs Voice)</li>
+      <li>Terminverwaltung & Erinnerungen</li>
+      <li>Rechnungen & Mahnwesen</li>
+      <li>Patienten-Kommunikation</li>
+      <li>DSGVO-konform (Hetzner DE)</li>
+    </ul>
+  </div>
+
+  <div class="agent-card future">
+    <div class="name">Weitere Verticals</div>
+    <div class="role">Skalierung</div>
+    <div class="pilot">Zukunft: jede Berufsgruppe</div>
+    <ul>
+      <li>Anwalte & Kanzleien</li>
+      <li>Immobilienmakler</li>
+      <li>Steuerberater</li>
+      <li>Handwerksbetriebe</li>
+      <li>Gleicher Core, neuer Vertical</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Architektur</h2>
+
+<div class="arch-diagram">
+<span class="highlight">Telegram</span> ─── Nutzer schreibt Nachricht
+    │
+    ▼
+<span class="highlight">Bot</span> (Authentifizierung, Rate Limiting)
+    │
+    ▼
+<span class="highlight">Brain</span> (Claude API) ─── versteht Intent, wahlt Aktion
+    │
+    ├──▶ <span class="pink">Actions</span> (Ghostwriter, Todos, E-Mail, Kalender...)
+    │
+    ├──▶ <span class="green">Auto-Learning</span> (extrahiert Fakten aus jedem Gesprach)
+    │
+    ├──▶ <span class="amber">Sub-Agents</span> (Code ausfuhren, recherchieren, Dateien erstellen)
+    │
+    └──▶ <span class="highlight">Scheduler</span> (Briefings, Erinnerungen, proaktive Nachrichten)
+    │
+    ▼
+<span class="highlight">Supabase</span> ─── Langzeitgedachtnis (Wissen, Kontakte, Projekte)
+</div>
+
+<h3>Zukunftsvision: Susi als Orchestrator</h3>
+
+<p>Der Nutzer gibt einen Auftrag. Susi erkennt was zu tun ist und delegiert an spezialisierte Sub-Agents:</p>
+
+<div class="arch-diagram">
+<span class="highlight">"Erstell eine Prasentation uber AI in der Zahnmedizin"</span>
+
+    Susi (Brain)
+      │
+      ├──▶ <span class="green">Research-Agent</span>    → recherchiert das Thema
+      ├──▶ <span class="pink">Design-Agent</span>      → erstellt HTML/PDF
+      └──▶ <span class="amber">File-Agent</span>        → schickt Datei per Telegram
+
+    Ergebnis: Fertige Prasentation als Datei im Chat
+</div>
+
+<h2>Feature-Roadmap</h2>
+
+<table>
+  <tr>
+    <th>Phase</th>
+    <th>Feature</th>
+    <th>Beschreibung</th>
+  </tr>
+  <tr>
+    <td><span class="phase-label p1">Phase 1</span></td>
+    <td>E-Mail Mitlesen</td>
+    <td>IMAP read-only — Fakten extrahieren (Kontakte, Firmen, Abmachungen)</td>
+  </tr>
+  <tr>
+    <td><span class="phase-label p1">Phase 1</span></td>
+    <td>Kalender Lesen</td>
+    <td>Google Calendar API — weiss was ansteht, erinnert proaktiv</td>
+  </tr>
+  <tr>
+    <td><span class="phase-label p1">Phase 1</span></td>
+    <td>Auto-Learning</td>
+    <td>Jede Nachricht wird analysiert, Fakten automatisch gespeichert</td>
+  </tr>
+  <tr>
+    <td><span class="phase-label p2">Phase 2</span></td>
+    <td>Proaktive Erinnerungen</td>
+    <td>"Du hast dem Muller noch nicht geantwortet (3 Tage)"</td>
+  </tr>
+  <tr>
+    <td><span class="phase-label p2">Phase 2</span></td>
+    <td>Tagesubersicht</td>
+    <td>Kalender + Todos + offene Follow-ups in einem Briefing</td>
+  </tr>
+  <tr>
+    <td><span class="phase-label p2">Phase 2</span></td>
+    <td>Kontaktmanagement</td>
+    <td>Beziehungspflege, Geburtstage, Netzwerk-Mapping</td>
+  </tr>
+  <tr>
+    <td><span class="phase-label p3">Phase 3</span></td>
+    <td>PDF-Erstellung</td>
+    <td>Businessplane, Berichte, Executive Summaries als formatierte PDFs</td>
+  </tr>
+  <tr>
+    <td><span class="phase-label p3">Phase 3</span></td>
+    <td>E-Mail Drafts</td>
+    <td>"Schreib dem Muller dass..." — fertiger Entwurf zur Freigabe</td>
+  </tr>
+  <tr>
+    <td><span class="phase-label p3">Phase 3</span></td>
+    <td>Web-Recherche</td>
+    <td>Firmeninfos, Personen-Recherche, Marktanalysen</td>
+  </tr>
+  <tr>
+    <td><span class="phase-label p3">Phase 3</span></td>
+    <td>Sub-Agent System</td>
+    <td>Autonome Aufgabenverteilung an spezialisierte Agents</td>
+  </tr>
+</table>
+
+<h2>Zeitplan</h2>
+
+<div class="timeline">
+  <div class="timeline-item">
+    <div class="time">April 2026 — Erledigt</div>
+    <div class="title">MVP: Lena + Susi live</div>
+    <div class="desc">Telegram Bots, Supabase, Auto-Learning, Railway 24/7 Deployment</div>
+  </div>
+  <div class="timeline-item">
+    <div class="time">April/Mai 2026</div>
+    <div class="title">Phase 1: E-Mail + Kalender</div>
+    <div class="desc">GMX IMAP Integration, Google Calendar API, passives Mitlesen</div>
+  </div>
+  <div class="timeline-item">
+    <div class="time">Mai/Juni 2026</div>
+    <div class="title">Phase 2: Proaktiver Assistent</div>
+    <div class="desc">Intelligente Erinnerungen, Tagesbriefings mit Kalender + Todos</div>
+  </div>
+  <div class="timeline-item">
+    <div class="time">Juni/Juli 2026</div>
+    <div class="title">Phase 3: Produktion</div>
+    <div class="desc">PDF-Erstellung, E-Mail Drafts, Web-Recherche, Sub-Agents</div>
+  </div>
+  <div class="timeline-item">
+    <div class="time">Q3 2026</div>
+    <div class="title">Arzt-Vertical</div>
+    <div class="desc">Erster zahlender Kunde: AI Office Manager fur Zahnarztpraxen</div>
+  </div>
+  <div class="timeline-item">
+    <div class="time">Q4 2026+</div>
+    <div class="title">Skalierung</div>
+    <div class="desc">Weitere Verticals, Telefonie-Layer, Enterprise Features</div>
+  </div>
+</div>
+
+<h2>Business Model</h2>
+
+<div class="business-model">
+  <h3 style="color: #34d399; margin-top: 0;">Strategie</h3>
+  <p><strong>Phase 1:</strong> Piloten validieren (Lena fur Esther, Susi fur Thomas) — kostenlos, lernen was funktioniert.</p>
+  <p><strong>Phase 2:</strong> Arzt-Vertical als erster zahlender Kunde. Preis: ~149-299/Monat pro Praxis.</p>
+  <p><strong>Phase 3:</strong> Weitere Verticals. Jeder neue Vertical = gleicher Core, neue Actions + Personlichkeit.</p>
+  <p style="margin-bottom: 0;"><strong>Skalierung:</strong> Ein neuer Vertical kostet Wochen statt Monate, weil der Core steht.</p>
+</div>
+
+<h2>Tech Stack</h2>
+
+<table>
+  <tr><th>Komponente</th><th>Technologie</th></tr>
+  <tr><td>AI Brain</td><td>Claude Sonnet 4.5 (Anthropic API)</td></tr>
+  <tr><td>Auto-Learning</td><td>Claude Haiku 4.5 (Faktenextraktion)</td></tr>
+  <tr><td>Telegram Bot</td><td>python-telegram-bot 21.5</td></tr>
+  <tr><td>Datenbank</td><td>Supabase (PostgreSQL)</td></tr>
+  <tr><td>Hosting</td><td>Railway (24/7, auto-deploy via GitHub)</td></tr>
+  <tr><td>Code</td><td>Python 3.12+, Plugin-Architektur</td></tr>
+  <tr><td>Scheduling</td><td>APScheduler (Briefings, Reminders)</td></tr>
+</table>
+
+<div class="footer">
+  Virtual Assistant Platform &middot; Thomas Gaeta &middot; Wien, 2026<br>
+  Gebaut mit Claude Code
+</div>
+
+</body>
+</html>

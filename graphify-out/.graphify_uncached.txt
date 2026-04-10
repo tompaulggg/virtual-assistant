@@ -1,0 +1,21 @@
+/Users/admin/tuby/requirements.txt
+/Users/admin/tuby/docs/HANDOFF_V4_PIPELINE.md
+/Users/admin/tuby/docs/HANDOFF.md
+/Users/admin/tuby/docs/specs/2026-04-09-pipeline-merge-plan.md
+/Users/admin/tuby/docs/specs/2026-04-09-pipeline-merge-design.md
+/Users/admin/tuby/docs/superpowers/plans/2026-03-31-pipeline-context.md
+/Users/admin/tuby/docs/superpowers/plans/2026-03-26-director-qa-agents.md
+/Users/admin/tuby/docs/superpowers/plans/2026-03-30-scout-agent.md
+/Users/admin/tuby/docs/superpowers/plans/2026-03-27-analyst-writer-agents.md
+/Users/admin/tuby/docs/superpowers/plans/2026-03-27-animator-agent.md
+/Users/admin/tuby/docs/superpowers/plans/2026-04-01-orchestrator-agent.md
+/Users/admin/tuby/docs/superpowers/specs/2026-04-01-orchestrator-agent-design.md
+/Users/admin/tuby/docs/superpowers/specs/2026-03-27-animator-agent-design.md
+/Users/admin/tuby/docs/superpowers/specs/2026-03-31-pipeline-context-design.md
+/Users/admin/tuby/docs/superpowers/specs/2026-03-30-scout-agent-design.md
+/Users/admin/tuby/docs/superpowers/specs/2026-03-26-director-qa-agents-design.md
+/Users/admin/tuby/docs/superpowers/specs/2026-03-27-analyst-writer-agents-design.md
+/Users/admin/tuby/static/editor/README.md
+/Users/admin/tuby/tubeclone businessplan/KONTEXT.md
+/Users/admin/tuby/TubeClone_Businessplan_08.04.2026_final.pdf
+/Users/admin/tuby/Lebenslauf_Thomas_Gaeta_2026.pdf

@@ -63,8 +63,8 @@ class Brain:
                 seen.add(ck)
                 merged.append(entry)
 
-        # Cap at 20
-        merged = merged[:20]
+        # Cap at 50
+        merged = merged[:50]
 
         if not merged:
             return ""
@@ -85,7 +85,7 @@ class Brain:
 
     def _build_knowledge_block_fallback(self, user_id: str) -> str:
         """Fallback: load all knowledge (old behavior, used when no embeddings)."""
-        entries = self.memory.get_all_knowledge(user_id, limit=20)
+        entries = self.memory.get_all_knowledge(user_id, limit=100)
         if not entries:
             return ""
 
