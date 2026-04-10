@@ -1,8 +1,8 @@
 assistant:
   name: "Susi"
   language: "de"
-  model: "claude-sonnet-4-5"
-  max_tokens: 1024
+  model: "claude-opus-4-6"
+  max_tokens: 2048
   token_env: "SUSI_TELEGRAM_TOKEN"
   allowed_user_ids_env: "SUSI_ALLOWED_USER_IDS"
 
