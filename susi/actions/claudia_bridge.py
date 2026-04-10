@@ -112,34 +112,8 @@ async def _poll_for_result(channel_id: str, channel_name: str, user_id: str):
     _poll_tasks.pop(channel_id, None)
 
 
-async def _resolve_channel_id(url: str) -> tuple[str, str] | None:
-    """Resolve YouTube URL to (channel_id, channel_title) via yt-dlp."""
-    import subprocess
-    try:
-        result = subprocess.run(
-            ["yt-dlp", "--print", "channel_id", "--print", "channel",
-             "--playlist-items", "0", url],
-            capture_output=True, text=True, timeout=20,
-        )
-        lines = result.stdout.strip().split("\n")
-        if len(lines) >= 2 and lines[0].startswith("UC"):
-            return lines[0].strip(), lines[1].strip()
-        # Fallback: try with --flat-playlist
-        result2 = subprocess.run(
-            ["yt-dlp", "--flat-playlist", "--print", "channel_id",
-             "--print", "channel", "--playlist-end", "1", url],
-            capture_output=True, text=True, timeout=20,
-        )
-        lines2 = result2.stdout.strip().split("\n")
-        if len(lines2) >= 2 and lines2[0].startswith("UC"):
-            return lines2[0].strip(), lines2[1].strip()
-    except Exception as e:
-        logger.warning(f"yt-dlp resolve failed: {e}")
-    return None
-
-
 async def _channel_submit(data: dict) -> str:
-    """Submit a YouTube channel to Claudia for CYO analysis."""
+    """Submit a YouTube channel URL to Claudia. MC resolves the ID and runs CYO."""
     url = data.get("url", "").strip()
     user_id = data.get("user_id", "")
 
@@ -147,42 +121,25 @@ async def _channel_submit(data: dict) -> str:
         return "Ich brauch einen YouTube-Link, z.B. youtube.com/@Felunee"
 
     try:
-        # Step 1: Resolve YouTube channel ID via yt-dlp
-        resolved = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: asyncio.run(_resolve_channel_id(url))
-        )
-
-        if not resolved:
-            # Fallback: try sync approach without async wrapper
-            import subprocess
-            try:
-                result = subprocess.run(
-                    ["yt-dlp", "--print", "channel_id", "--print", "channel",
-                     "--playlist-items", "0", url],
-                    capture_output=True, text=True, timeout=20,
-                )
-                lines = result.stdout.strip().split("\n")
-                if len(lines) >= 2 and lines[0].startswith("UC"):
-                    resolved = (lines[0].strip(), lines[1].strip())
-            except Exception:
-                pass
-
-        if not resolved:
-            return f"Konnte den Channel nicht auflösen. Ist der Link korrekt? ({url})"
-
-        channel_id, channel_name = resolved
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # Step 2: Sync channel to Mission Control (uses real YouTube ID)
-            sync_resp = await client.post(
-                f"{MC_URL}/api/meta/channels/sync",
-                json={"channel_id": channel_id, "title": channel_name},
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            # Step 1: Send URL to MC — MC resolves channel ID via yt-dlp and starts CYO
+            resp = await client.post(
+                f"{MC_URL}/api/meta/channels/submit-url",
+                json={"url": url},
             )
 
-            if sync_resp.status_code != 200:
-                return f"Claudia konnte den Channel nicht verarbeiten (HTTP {sync_resp.status_code})"
+            if resp.status_code != 200:
+                error = resp.json().get("error", f"HTTP {resp.status_code}")
+                return f"Claudia konnte den Channel nicht verarbeiten: {error}"
 
-            # Step 3: Start background polling
+            result = resp.json()
+            channel_id = result.get("channel_id", "")
+            channel_name = result.get("title", url)
+
+            if not channel_id:
+                return "Channel wurde gesendet, aber Claudia konnte keine ID ermitteln."
+
+            # Step 2: Start background polling for CYO result
             if channel_id not in _poll_tasks:
                 task = asyncio.create_task(
                     _poll_for_result(channel_id, channel_name, user_id)
