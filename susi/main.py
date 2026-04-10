@@ -62,7 +62,10 @@ def setup_scheduler(scheduler: Scheduler, bot_instance):
     todo_store = TodoStore()
     allowed_ids = os.getenv("SUSI_ALLOWED_USER_IDS", "").split(",")
 
+    _cost_alert_sent_today = None
+
     async def check_reminders():
+        nonlocal _cost_alert_sent_today
         due = await reminder_store.get_due()
         for r in due:
             try:
@@ -73,6 +76,25 @@ def setup_scheduler(scheduler: Scheduler, bot_instance):
                 await reminder_store.mark_sent(r["id"])
             except Exception as e:
                 logger.error(f"Failed to send reminder: {e}")
+
+        # Cost alert check (once per day)
+        from datetime import date
+        today = date.today().isoformat()
+        if _cost_alert_sent_today != today:
+            from susi.actions.cost_tracker import is_cost_alert
+            should_alert, alert_msg = is_cost_alert()
+            if should_alert:
+                _cost_alert_sent_today = today
+                for user_id in allowed_ids:
+                    if not user_id.strip():
+                        continue
+                    try:
+                        await bot_instance.bot.send_message(
+                            chat_id=user_id.strip(),
+                            text=alert_msg,
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to send cost alert: {e}")
 
     async def morning_briefing():
         for user_id in allowed_ids:
@@ -89,8 +111,24 @@ def setup_scheduler(scheduler: Scheduler, bot_instance):
             except Exception as e:
                 logger.error(f"Failed to send briefing: {e}")
 
+    from susi.actions.cost_tracker import get_daily_summary
+
+    async def daily_cost_report():
+        for user_id in allowed_ids:
+            if not user_id.strip():
+                continue
+            try:
+                text = get_daily_summary()
+                await bot_instance.bot.send_message(
+                    chat_id=user_id.strip(),
+                    text=text,
+                )
+            except Exception as e:
+                logger.error(f"Failed to send cost report: {e}")
+
     scheduler.add_interval("reminder_check", check_reminders, seconds=60)
     scheduler.add_cron("morning_briefing", morning_briefing, hour=8, minute=0)
+    scheduler.add_cron("daily_cost_report", daily_cost_report, hour=22, minute=0)
     logger.info("Scheduler jobs registered")
 
 

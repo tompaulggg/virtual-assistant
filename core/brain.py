@@ -1,16 +1,30 @@
 import json
 import logging
+import os
+from datetime import datetime, timezone
+from pathlib import Path
 import anthropic
 from core.types import AssistantConfig, ActionDef
 from core.memory import Memory
 
 logger = logging.getLogger(__name__)
 
+_LOG_DIR = Path(__file__).parent.parent / "logs"
+
 
 class Brain:
+    MODEL_COSTS = {
+        "claude-haiku-4-5-20251001": {"input": 1.0, "output": 5.0},
+        "claude-sonnet-4-6": {"input": 3.0, "output": 15.0},
+        "claude-opus-4-6": {"input": 5.0, "output": 25.0},
+    }
+
     def __init__(self, config: AssistantConfig):
         self.config = config
-        self.client = anthropic.Anthropic()
+        # Use bot-specific API key if available, fall back to default
+        key_env = f"{config.name.upper()}_ANTHROPIC_API_KEY"
+        api_key = os.getenv(key_env) or os.getenv("ANTHROPIC_API_KEY")
+        self.client = anthropic.Anthropic(api_key=api_key)
         self.memory = Memory(bot_name=config.name.lower())
         self.actions: dict[str, ActionDef] = {}
         self.prompt_extensions: list[str] = []
@@ -154,6 +168,31 @@ class Brain:
 
         return "\n".join(lines)
 
+    def _log_cost(self, response, model: str = ""):
+        """Log API call cost to JSONL for daily reporting."""
+        try:
+            usage = response.usage
+            model = model or self.config.model
+            costs = self.MODEL_COSTS.get(model, {"input": 3.0, "output": 15.0})
+            cost_usd = (
+                usage.input_tokens / 1_000_000 * costs["input"]
+                + usage.output_tokens / 1_000_000 * costs["output"]
+            )
+            _LOG_DIR.mkdir(exist_ok=True)
+            log_file = _LOG_DIR / f"{self.config.name.lower()}_{datetime.now().strftime('%Y-%m')}.jsonl"
+            entry = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "bot": self.config.name.lower(),
+                "model": model,
+                "input_tokens": usage.input_tokens,
+                "output_tokens": usage.output_tokens,
+                "cost_usd": round(cost_usd, 6),
+            }
+            with open(log_file, "a") as f:
+                f.write(json.dumps(entry) + "\n")
+        except Exception as e:
+            logger.warning(f"Cost logging failed: {e}")
+
     async def _auto_learn(self, message: str, reply: str, user_id: str):
         """Extract facts from the conversation and store them automatically."""
         try:
@@ -182,6 +221,7 @@ class Brain:
                 }],
             )
 
+            self._log_cost(extraction, model="claude-haiku-4-5-20251001")
             text = extraction.content[0].text.strip()
             if text.startswith("["):
                 facts = json.loads(text)
@@ -209,6 +249,7 @@ class Brain:
             messages=history[-20:],
         )
 
+        self._log_cost(response)
         reply = response.content[0].text.strip()
 
         # Try to find and execute an action JSON anywhere in the reply
