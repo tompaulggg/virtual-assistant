@@ -29,7 +29,7 @@ from core import AssistantConfig, Brain, Bot, Scheduler
 # Reuse shared actions from Lena
 from lena.actions import ghostwriter, todos, reminders, knowledge, briefing
 # Susi-specific actions
-from susi.actions import projects, ideas, claudia_bridge
+from susi.actions import projects, ideas, claudia_bridge, email_sync
 
 
 def register_actions(brain: Brain):
@@ -37,7 +37,7 @@ def register_actions(brain: Brain):
     # Shared actions
     shared = [ghostwriter, todos, reminders, knowledge, briefing]
     # Susi-only actions
-    susi_only = [projects, ideas, claudia_bridge]
+    susi_only = [projects, ideas, claudia_bridge, email_sync]
 
     for module in shared + susi_only:
         for action_def in module.register():
@@ -126,7 +126,27 @@ def setup_scheduler(scheduler: Scheduler, bot_instance):
             except Exception as e:
                 logger.error(f"Failed to send cost report: {e}")
 
+    # Email sync — read and learn from emails every 30 minutes
+    from core.email_reader import EmailReader
+    from core.memory import Memory as SusiMemory
+    email_reader = EmailReader()
+    email_memory = SusiMemory(bot_name="susi")
+
+    async def email_sync_job():
+        for user_id in allowed_ids:
+            if not user_id.strip():
+                continue
+            try:
+                result = await email_reader.sync_and_learn(
+                    user_id.strip(), email_memory, hours=1
+                )
+                if "0 Fakten" not in result and "Keine" not in result:
+                    logger.info(f"Email sync: {result}")
+            except Exception as e:
+                logger.error(f"Email sync failed: {e}")
+
     scheduler.add_interval("reminder_check", check_reminders, seconds=60)
+    scheduler.add_interval("email_sync", email_sync_job, minutes=30)
     scheduler.add_cron("morning_briefing", morning_briefing, hour=8, minute=0)
     scheduler.add_cron("daily_cost_report", daily_cost_report, hour=22, minute=0)
     logger.info("Scheduler jobs registered")
