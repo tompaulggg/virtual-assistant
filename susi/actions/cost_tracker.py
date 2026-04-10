@@ -111,12 +111,11 @@ def get_daily_summary() -> str:
 
     # Month-to-date
     sub_monthly = sum(SUBSCRIPTIONS.values())
-    sub_mtd = round(sub_monthly / 30 * day_of_month, 2)
 
     lines.append(f"Monat bisher (Tag {day_of_month}):")
     lines.append(f"  API: ${month_total_api:.2f}")
-    lines.append(f"  Subscriptions: ~€{sub_mtd:.0f}")
-    lines.append(f"  Hochrechnung Monat: ~€{round((month_total_api + sub_mtd) / day_of_month * 30)}")
+    lines.append(f"  Subscriptions fix: €{sub_monthly:.0f}/Monat")
+    lines.append(f"  Hochrechnung API Monat: ~${round(month_total_api / day_of_month * 30)}")
 
     # Alert
     if today_total > DAILY_ALERT_THRESHOLD:
