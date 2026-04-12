@@ -180,3 +180,183 @@ class EmailReader:
         summary = f"{len(emails)} E-Mails gelesen, {stored} Fakten gelernt."
         logger.info(f"Email sync: {summary}")
         return summary
+
+    def scan_inbox(self, max_emails: int = 500) -> dict:
+        """Scan entire inbox and categorize senders by frequency."""
+        if not self.email_addr or not self.password:
+            return {"error": "Email credentials not configured"}
+
+        try:
+            mail = imaplib.IMAP4_SSL(self.server, 993)
+            mail.login(self.email_addr, self.password)
+            mail.select("INBOX", readonly=True)
+
+            _, message_ids = mail.search(None, "ALL")
+            if not message_ids[0]:
+                mail.logout()
+                return {"total": 0, "senders": {}}
+
+            all_ids = message_ids[0].split()
+            total = len(all_ids)
+            # Sample last N emails for analysis
+            sample_ids = all_ids[-max_emails:]
+
+            sender_counts: dict[str, int] = {}
+            for eid in sample_ids:
+                try:
+                    _, msg_data = mail.fetch(eid, "(BODY[HEADER.FIELDS (FROM)])")
+                    if msg_data and msg_data[0]:
+                        raw_from = msg_data[0][1]
+                        if isinstance(raw_from, bytes):
+                            raw_from = raw_from.decode("utf-8", errors="replace")
+                        # Extract email address
+                        import re
+                        match = re.search(r'[\w.+-]+@[\w.-]+', raw_from)
+                        if match:
+                            addr = match.group().lower()
+                            sender_counts[addr] = sender_counts.get(addr, 0) + 1
+                except Exception:
+                    continue
+
+            mail.logout()
+
+            # Sort by frequency
+            sorted_senders = sorted(sender_counts.items(), key=lambda x: -x[1])
+            return {
+                "total": total,
+                "sampled": len(sample_ids),
+                "unique_senders": len(sender_counts),
+                "top_senders": sorted_senders[:30],
+            }
+
+        except Exception as e:
+            logger.error(f"Inbox scan error: {e}")
+            return {"error": str(e)}
+
+    def delete_from_sender(self, sender_email: str) -> int:
+        """Move all emails from a sender to trash. Returns count deleted."""
+        if not self.email_addr or not self.password:
+            return 0
+
+        try:
+            mail = imaplib.IMAP4_SSL(self.server, 993)
+            mail.login(self.email_addr, self.password)
+            mail.select("INBOX", readonly=False)  # Write access
+
+            _, message_ids = mail.search(None, f'(FROM "{sender_email}")')
+            if not message_ids[0]:
+                mail.logout()
+                return 0
+
+            ids = message_ids[0].split()
+            for eid in ids:
+                # Mark as deleted
+                mail.store(eid, "+FLAGS", "\\Deleted")
+
+            mail.expunge()
+            mail.logout()
+            logger.info(f"Deleted {len(ids)} emails from {sender_email}")
+            return len(ids)
+
+        except Exception as e:
+            logger.error(f"Delete error: {e}")
+            return 0
+
+    def find_unsubscribe_links(self, sender_email: str, max_check: int = 3) -> list[str]:
+        """Find unsubscribe links in emails from a sender."""
+        if not self.email_addr or not self.password:
+            return []
+
+        try:
+            mail = imaplib.IMAP4_SSL(self.server, 993)
+            mail.login(self.email_addr, self.password)
+            mail.select("INBOX", readonly=True)
+
+            _, message_ids = mail.search(None, f'(FROM "{sender_email}")')
+            if not message_ids[0]:
+                mail.logout()
+                return []
+
+            ids = message_ids[0].split()[-max_check:]
+            links = set()
+
+            import re
+            for eid in ids:
+                try:
+                    _, msg_data = mail.fetch(eid, "(RFC822)")
+                    if not msg_data or not msg_data[0]:
+                        continue
+                    raw = msg_data[0][1]
+                    msg = email.message_from_bytes(raw)
+
+                    # Check List-Unsubscribe header
+                    unsub_header = msg.get("List-Unsubscribe", "")
+                    if unsub_header:
+                        for match in re.finditer(r'<(https?://[^>]+)>', unsub_header):
+                            links.add(match.group(1))
+
+                    # Check body for unsubscribe links
+                    body = self._extract_body(msg)
+                    for match in re.finditer(
+                        r'(https?://\S*(?:unsubscribe|abmelden|abbestellen|opt.?out)\S*)',
+                        body, re.IGNORECASE
+                    ):
+                        links.add(match.group(1))
+
+                except Exception:
+                    continue
+
+            mail.logout()
+            return list(links)[:5]
+
+        except Exception as e:
+            logger.error(f"Unsubscribe search error: {e}")
+            return []
+
+    def classify_importance(self, emails: list[dict]) -> list[dict]:
+        """Classify emails as important/newsletter/spam using Haiku."""
+        if not emails:
+            return []
+
+        email_texts = []
+        for i, e in enumerate(emails[:15]):
+            email_texts.append(
+                f"[{i}] Von: {e['from']}\n"
+                f"Betreff: {e['subject']}\n"
+                f"Anfang: {e['body'][:200]}"
+            )
+
+        combined = "\n\n".join(email_texts)
+
+        try:
+            result = self.client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=512,
+                system=(
+                    "Klassifiziere E-Mails. Antworte NUR mit JSON-Array.\n"
+                    "Jedes Objekt: {\"index\": N, \"type\": \"wichtig|newsletter|spam|info\", \"reason\": \"kurzer Grund\"}\n"
+                    "wichtig = persönliche Mail, Rechnung, Termin, Vertrag, Behörde\n"
+                    "newsletter = regelmäßiger Versand, Abo\n"
+                    "spam = Werbung, Promotion\n"
+                    "info = automatische Benachrichtigung (Versand, Login, etc.)"
+                ),
+                messages=[{
+                    "role": "user",
+                    "content": f"Klassifiziere:\n\n{combined}",
+                }],
+            )
+
+            text = result.content[0].text.strip()
+            if text.startswith("["):
+                classifications = json.loads(text)
+                # Merge back into emails
+                for c in classifications:
+                    idx = c.get("index", -1)
+                    if 0 <= idx < len(emails):
+                        emails[idx]["type"] = c.get("type", "info")
+                        emails[idx]["reason"] = c.get("reason", "")
+                return emails
+        except Exception as e:
+            logger.error(f"Classification failed: {e}")
+
+        return emails

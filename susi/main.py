@@ -126,7 +126,7 @@ def setup_scheduler(scheduler: Scheduler, bot_instance):
             except Exception as e:
                 logger.error(f"Failed to send cost report: {e}")
 
-    # Email sync — read and learn from emails every 30 minutes
+    # Email sync — read, learn, and alert on important emails
     from core.email_reader import EmailReader
     from core.memory import Memory as SusiMemory
     email_reader = EmailReader()
@@ -137,11 +137,32 @@ def setup_scheduler(scheduler: Scheduler, bot_instance):
             if not user_id.strip():
                 continue
             try:
+                # Learn from new emails
                 result = await email_reader.sync_and_learn(
                     user_id.strip(), email_memory, hours=1
                 )
                 if "0 Fakten" not in result and "Keine" not in result:
                     logger.info(f"Email sync: {result}")
+
+                # Check for important emails and alert
+                emails = email_reader.fetch_recent(hours=1, max_emails=10)
+                if emails:
+                    classified = email_reader.classify_importance(emails)
+                    important = [e for e in classified if e.get("type") == "wichtig"]
+                    if important:
+                        lines = ["📬 **Wichtige E-Mail(s) eingegangen:**\n"]
+                        for e in important:
+                            sender = e["from"].split("<")[0].strip().strip('"')
+                            lines.append(f"• **{sender}**: {e['subject']}")
+                            if e.get("reason"):
+                                lines.append(f"  → {e['reason']}")
+                        try:
+                            await bot_instance.bot.send_message(
+                                chat_id=user_id.strip(),
+                                text="\n".join(lines),
+                            )
+                        except Exception as e2:
+                            logger.error(f"Failed to send email alert: {e2}")
             except Exception as e:
                 logger.error(f"Email sync failed: {e}")
 
