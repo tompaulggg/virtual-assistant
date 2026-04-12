@@ -29,7 +29,9 @@ from core import AssistantConfig, Brain, Bot, Scheduler
 # Reuse shared actions from Lena
 from lena.actions import ghostwriter, todos, reminders, knowledge, briefing
 # Susi-specific actions
-from susi.actions import projects, ideas, claudia_bridge, email_sync
+from susi.actions import projects, ideas, claudia_bridge, email_sync, calendar_sync
+from susi.actions import event_poller, event_handlers, inline_buttons
+from susi.actions.morning_briefing_v2 import build_combined_briefing
 
 
 def register_actions(brain: Brain):
@@ -37,7 +39,7 @@ def register_actions(brain: Brain):
     # Shared actions
     shared = [ghostwriter, todos, reminders, knowledge, briefing]
     # Susi-only actions
-    susi_only = [projects, ideas, claudia_bridge, email_sync]
+    susi_only = [projects, ideas, claudia_bridge, email_sync, calendar_sync]
 
     for module in shared + susi_only:
         for action_def in module.register():
@@ -50,6 +52,12 @@ def register_actions(brain: Brain):
 
     brain.add_prompt_extension(ghostwriter.GHOSTWRITER_INSTRUCTIONS)
     logger.info(f"Registered {len(brain.actions)} actions")
+
+    # Register MC event handlers
+    event_poller.register_handler("channel_analyzed", event_handlers.handle_channel_analyzed)
+    event_poller.register_handler("aufbau_review_ready", event_handlers.handle_aufbau_review_ready)
+    event_poller.register_handler("aufbau_started", event_handlers.handle_aufbau_started)
+    logger.info("MC event handlers registered")
 
 
 def setup_scheduler(scheduler: Scheduler, bot_instance):
@@ -101,7 +109,7 @@ def setup_scheduler(scheduler: Scheduler, bot_instance):
             if not user_id.strip():
                 continue
             try:
-                text = await build_morning_briefing(
+                text = await build_combined_briefing(
                     user_id.strip(), todo_store, reminder_store
                 )
                 await bot_instance.bot.send_message(
@@ -170,6 +178,12 @@ def setup_scheduler(scheduler: Scheduler, bot_instance):
     scheduler.add_interval("email_sync", email_sync_job, minutes=30)
     scheduler.add_cron("morning_briefing", morning_briefing, hour=8, minute=0)
     scheduler.add_cron("daily_cost_report", daily_cost_report, hour=22, minute=0)
+
+    # Event poller — check MC for new events every 10 seconds
+    async def poll_mc_events():
+        await event_poller.poll_and_dispatch(bot_instance.bot, allowed_ids)
+
+    scheduler.add_interval("mc_event_poller", poll_mc_events, seconds=10)
     logger.info("Scheduler jobs registered")
 
 
@@ -192,6 +206,18 @@ def main():
         logger.info(f"{config.name} ist online")
 
     bot.get_application().post_init = on_startup
+
+    # Add inline button callback handler and revision reply handler
+    from telegram.ext import CallbackQueryHandler, MessageHandler, filters
+    app = bot.get_application()
+    app.add_handler(CallbackQueryHandler(inline_buttons.handle_callback))
+    app.add_handler(
+        MessageHandler(
+            filters.TEXT & filters.REPLY & ~filters.COMMAND,
+            inline_buttons.handle_revision_reply,
+        ),
+        group=0,
+    )
 
     bot.run()
 
