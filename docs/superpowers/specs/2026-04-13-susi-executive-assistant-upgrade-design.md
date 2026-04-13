@@ -19,7 +19,9 @@ Thomas sends a voice memo via Telegram. Susi transcribes it and processes it lik
 - New handler in `core/bot.py`: `handle_voice`
 - Registered via `MessageHandler(filters.VOICE | filters.AUDIO, self.handle_voice)`
 - Downloads .ogg file from Telegram via `voice.get_file()` + `download_as_bytearray()`
-- Sends to OpenAI Whisper API: `openai.audio.transcriptions.create(model="whisper-1", language="de")`
+- Saves to temp file (`tempfile.NamedTemporaryFile(suffix=".ogg")`) — Whisper API needs a file handle, not raw bytes
+- Sends to OpenAI Whisper API: `openai.audio.transcriptions.create(model="whisper-1", file=temp_file, language="de")`
+- Temp file deleted after transcription
 - `language="de"` hint for better German/Denglisch transcription
 - Transcribed text goes to `brain.process()` — same as any text message
 - Max duration: 15 minutes. Longer memos get a friendly rejection message.
@@ -56,7 +58,17 @@ Susi can search the web to find current information. Works two ways:
 
 ### Multi-Step Research
 
-Brain's action loop already supports sequential actions. When Brain returns a `web_search` action, the result is fed back as context for a follow-up LLM call. This repeats up to 3 times before Brain must produce a final response.
+Brain currently executes ONE action per message and returns. For web search and email drafting, Brain needs a **multi-step action loop**: execute an action, feed the result back to Claude as context, let Claude decide the next action, repeat up to 3 times.
+
+**Change to `core/brain.py`:** Add a loop in `process()`:
+1. Call Claude → get response
+2. If response contains an action → execute it
+3. Feed action result back as a new user message: "Action result: {result}"
+4. Call Claude again (with action result in context)
+5. Repeat up to 3 iterations, then force a final text response
+6. If response contains no action → return text as normal
+
+This is the most significant architectural change in this spec.
 
 ### Knowledge Integration
 
@@ -103,8 +115,9 @@ The initial setup script creates the directory, symlinks, and runs first ingesti
 
 **`file_send`** — Send file as Telegram document
 - Parameter: `filename` (string)
-- Finds file via `file_search`, sends via `bot.send_document()`
+- Finds file via `file_search`, sends via Telegram bot
 - Only files within allowed directories
+- **Implementation note:** Actions don't have direct bot access. `file_send` returns a special dict `{"type": "send_file", "path": "/abs/path"}` instead of a string. Brain/Bot recognizes this return type and calls `bot.send_document()`. Same pattern as `claudia_bridge.set_telegram_bot()`.
 
 **`file_ingest`** — Read document and store as Knowledge
 - Parameter: `filename` (string, optional — if omitted, ingests all new/changed files)
@@ -201,8 +214,17 @@ This is handled by Brain's existing sequential action loop — no new orchestrat
 ### Dependencies
 
 - Gmail API (already integrated for reading)
-- OAuth scope upgrade: `gmail.compose` (requires re-auth once)
+- OAuth scope upgrade: `gmail.compose` (requires re-auth once — see Setup below)
 - `email.mime` (Python stdlib)
+
+### Gmail OAuth Setup (one-time)
+
+Adding `gmail.compose` scope requires Thomas to re-authorize once:
+1. Delete existing token file (`~/.google/token_susi.json` or wherever stored)
+2. Restart Susi → Gmail OAuth flow triggers automatically
+3. Thomas clicks the auth URL, grants "compose" permission
+4. New token saved with both read + compose scopes
+5. This is a one-time step, documented in setup instructions
 
 ### Files
 
@@ -230,7 +252,8 @@ This is handled by Brain's existing sequential action loop — no new orchestrat
 
 | File | Change |
 |------|--------|
-| `core/bot.py` | Add voice message handler |
+| `core/bot.py` | Add voice message handler + file_send return type handling |
+| `core/brain.py` | Add multi-step action loop (max 3 iterations) |
 | `core/email_reader.py` | Add create_draft(), upgrade OAuth scopes |
 | `susi/main.py` | Register new actions + file ingestion job |
 | `susi/config.yaml` | Add new actions to permissions |
