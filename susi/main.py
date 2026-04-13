@@ -29,7 +29,7 @@ from core import AssistantConfig, Brain, Bot, Scheduler
 # Reuse shared actions from Lena
 from lena.actions import ghostwriter, todos, reminders, knowledge, briefing
 # Susi-specific actions
-from susi.actions import projects, ideas, claudia_bridge, email_sync, calendar_sync, web_search, file_access
+from susi.actions import projects, ideas, claudia_bridge, email_sync, calendar_sync, web_search, file_access, file_ingestion
 from susi.actions import event_poller, event_handlers, inline_buttons
 from susi.actions.morning_briefing_v2 import build_combined_briefing
 
@@ -39,7 +39,7 @@ def register_actions(brain: Brain):
     # Shared actions
     shared = [ghostwriter, todos, reminders, knowledge, briefing]
     # Susi-only actions
-    susi_only = [projects, ideas, claudia_bridge, email_sync, calendar_sync, web_search, file_access]
+    susi_only = [projects, ideas, claudia_bridge, email_sync, calendar_sync, web_search, file_access, file_ingestion]
 
     for module in shared + susi_only:
         for action_def in module.register():
@@ -189,6 +189,22 @@ def setup_scheduler(scheduler: Scheduler, bot_instance):
         await event_poller.poll_and_dispatch(bot_instance.bot, allowed_ids)
 
     scheduler.add_interval("mc_event_poller", poll_mc_events, seconds=10)
+
+    # Daily file ingestion — scan ~/Susi/ for new/changed files
+    async def daily_file_ingestion():
+        from susi.actions.file_ingestion import ingest_all
+        from core.memory import Memory
+        memory = Memory(bot_name="susi")
+        for user_id in allowed_ids:
+            if not user_id.strip():
+                continue
+            try:
+                result = await ingest_all(memory, user_id.strip())
+                logger.info(f"Daily ingestion: {result}")
+            except Exception as e:
+                logger.error(f"Daily ingestion failed: {e}")
+
+    scheduler.add_cron("file_ingestion", daily_file_ingestion, hour=6, minute=0)
     logger.info("Scheduler jobs registered")
 
 

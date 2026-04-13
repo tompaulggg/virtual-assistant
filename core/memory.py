@@ -79,6 +79,15 @@ class Memory:
             except Exception as e:
                 logger.warning(f"Failed to store embedding: {e}")
 
+    def delete_knowledge(self, user_id: str, category: str, key: str):
+        """Delete a knowledge entry."""
+        try:
+            self.db.table("knowledge").delete().eq(
+                "user_id", user_id
+            ).eq("category", category).eq("key", key).execute()
+        except Exception as e:
+            logger.warning(f"delete_knowledge failed: {e}")
+
     def search_knowledge_semantic(
         self, user_id: str, query: str, limit: int = 12
     ) -> list[dict]:
