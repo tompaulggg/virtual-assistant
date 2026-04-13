@@ -38,7 +38,7 @@ Eine JSON-Datei pro Channel in `~/Documents/BotProjects/meta_memory/aca_channels
   "handle": "Aurrraaaaaa",
   "niche": "stoicism",
   "language": "en",
-  "production_days": ["monday", "wednesday"],
+  "production_days": ["monday", "wednesday", "friday"],
   "videos_per_week": 3,
   "reference_channels": ["UCxyz", "UCabc"],
   "style": "dark narration, cinematic",
@@ -48,7 +48,7 @@ Eine JSON-Datei pro Channel in `~/Documents/BotProjects/meta_memory/aca_channels
 }
 ```
 
-**Status-Werte:** `analyse` → `aufbau` → `produktion` → `live` → `paused`
+**Status-Werte:** `analyse` → `aufbau` → `produktion` → `live` (Auto-Upload aktiv, Phase 3) → `paused`
 
 ## Shared vs. Channel-spezifisch
 
@@ -90,7 +90,8 @@ Eine JSON-Datei pro Channel in `~/Documents/BotProjects/meta_memory/aca_channels
 
 ### 2. Bestätigung Aufbau (Gate 1)
 - Du bestätigst: "Ja, starten"
-- CYO erstellt ACA-Config mit Nische, Sprache, Referenz-Channels
+- **Manuell:** Du erstellst den YouTube-Kanal auf youtube.com (ACA kann das nicht)
+- Du gibst Susi die Channel-URL → CYO erstellt ACA-Config mit Nische, Sprache, Referenz-Channels
 - Status: `aufbau`
 
 ### 3. Aufbau (ACA Phase 0)
