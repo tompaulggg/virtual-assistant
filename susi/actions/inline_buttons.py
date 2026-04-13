@@ -22,7 +22,7 @@ event_channel_map: dict[int, str] = {}
 pending_reviews: dict[int, str] = {}
 
 # Decision log file
-DECISIONS_FILE = Path.home() / "virtual-assistant" / "susi" / "decisions.jsonl"
+DECISIONS_FILE = Path(__file__).resolve().parent.parent / "decisions.jsonl"
 
 
 def register_event_channel(event_id: int, channel_id: str):
