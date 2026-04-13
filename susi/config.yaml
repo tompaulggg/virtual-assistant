@@ -50,6 +50,7 @@ permissions:
     - briefing
     - projects
     - ideas
+    - web_search
     - channel_submit
     - channel_status
     - channel_aufbau
