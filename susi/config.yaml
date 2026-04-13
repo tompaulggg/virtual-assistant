@@ -54,6 +54,8 @@ permissions:
     - channel_submit
     - channel_status
     - channel_aufbau
+    - file_search
+    - file_send
   requires_confirmation:
     - send_email
     - delete_data
