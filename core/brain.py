@@ -238,34 +238,58 @@ class Brain:
         except Exception as e:
             logger.warning(f"Auto-learn failed: {e}")
 
-    async def process(self, message: str, user_id: str) -> str:
+    async def process(self, message: str, user_id: str) -> str | dict:
         history = self.memory.get_history(user_id)
         history.append({"role": "user", "content": message})
 
-        response = self.client.messages.create(
-            model=self.config.model,
-            max_tokens=self.config.max_tokens,
-            system=self._build_system_prompt(user_id, message=message),
-            messages=history[-20:],
-        )
+        max_iterations = 3
+        for iteration in range(max_iterations + 1):
+            response = self.client.messages.create(
+                model=self.config.model,
+                max_tokens=self.config.max_tokens,
+                system=self._build_system_prompt(user_id, message=message),
+                messages=history[-20:],
+            )
 
-        self._log_cost(response)
-        reply = response.content[0].text.strip()
+            self._log_cost(response)
+            reply = response.content[0].text.strip()
 
-        # Try to find and execute an action JSON anywhere in the reply
-        action_result = await self._try_execute_action(reply, message, user_id)
-        if action_result is not None:
-            return action_result
+            # Try to find and execute an action
+            action_result = await self._try_execute_action(reply, message, user_id)
 
-        self.memory.save(user_id, message, reply)
-        await self._auto_learn(message, reply, user_id)
-        return reply
+            if action_result is None:
+                # No action — final text response
+                self.memory.save(user_id, message, reply)
+                await self._auto_learn(message, reply, user_id)
+                return reply
 
-    async def _try_execute_action(self, reply: str, message: str, user_id: str) -> str | None:
-        """Extract and execute action JSON from reply. Returns result or None."""
+            # Special return type: file to send (don't loop, return immediately)
+            if isinstance(action_result, dict) and action_result.get("type") == "send_file":
+                self.memory.save(user_id, message, f"[Datei gesendet: {action_result.get('path', '')}]")
+                return action_result
+
+            # Action executed — feed result back for follow-up
+            if iteration < max_iterations:
+                history.append({"role": "assistant", "content": reply})
+                history.append({
+                    "role": "user",
+                    "content": f"[Aktion ausgefuehrt. Ergebnis:]\n{action_result}",
+                })
+                continue
+            else:
+                # Max iterations — return last action result
+                self.memory.save(user_id, message, str(action_result))
+                await self._auto_learn(message, str(action_result), user_id)
+                return str(action_result)
+
+        return "Ich konnte die Anfrage nicht vollstaendig bearbeiten."
+
+    async def _try_execute_action(self, reply: str, message: str, user_id: str) -> str | dict | None:
+        """Extract and execute action JSON from reply. Returns result or None.
+        Does NOT save to memory — caller (process) handles that.
+        """
         import re
 
-        # Try to find JSON with "action" key — could be raw, in code block, or mixed with text
         json_candidates = []
 
         # Pattern 1: ```json ... ``` code block
@@ -290,25 +314,18 @@ class Brain:
                 data = parsed.get("data", {})
                 action = self.actions.get(action_name)
                 if not action:
-                    result = f"Aktion '{action_name}' ist nicht verfügbar."
-                    self.memory.save(user_id, message, result)
-                    return result
+                    return f"Aktion '{action_name}' ist nicht verfuegbar."
 
                 data["user_id"] = user_id
                 result = await action.handler(data)
                 self.memory.log_action(user_id, action_name, data)
 
-                # If there was text before/after the JSON, include it
+                # Prepend any text before/after the JSON
                 text_parts = reply.replace(candidate, "").strip()
                 text_parts = re.sub(r'```json\s*```', '', text_parts).strip()
-                if text_parts:
-                    full_reply = f"{text_parts}\n\n{result}"
-                else:
-                    full_reply = result
-
-                self.memory.save(user_id, message, full_reply)
-                await self._auto_learn(message, full_reply, user_id)
-                return full_reply
+                if text_parts and isinstance(result, str):
+                    return f"{text_parts}\n\n{result}"
+                return result
             except (json.JSONDecodeError, KeyError):
                 continue
 
