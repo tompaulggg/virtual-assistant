@@ -296,9 +296,18 @@ class Brain:
         for m in re.finditer(r'```(?:json)?\s*(\{.*?\})\s*```', reply, re.DOTALL):
             json_candidates.append(m.group(1))
 
-        # Pattern 2: raw JSON starting with {"action"
-        for m in re.finditer(r'(\{"action".*?\})', reply, re.DOTALL):
-            json_candidates.append(m.group(1))
+        # Pattern 2: find balanced JSON objects starting with {"action"
+        # Use bracket counting instead of regex to handle nested braces
+        for start_idx in [m.start() for m in re.finditer(r'\{"action"', reply)]:
+            depth = 0
+            for i in range(start_idx, len(reply)):
+                if reply[i] == '{':
+                    depth += 1
+                elif reply[i] == '}':
+                    depth -= 1
+                    if depth == 0:
+                        json_candidates.append(reply[start_idx:i+1])
+                        break
 
         # Pattern 3: entire reply is JSON
         if reply.startswith("{"):
