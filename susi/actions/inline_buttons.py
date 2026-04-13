@@ -15,19 +15,40 @@ logger = logging.getLogger(__name__)
 
 MC_URL = os.getenv("MISSION_CONTROL_URL", "http://localhost:3000")
 
-# Maps event_id -> channel_id (populated when events are processed)
-event_channel_map: dict[int, str] = {}
+# Persistent file for event_id -> channel_id mapping (survives restarts)
+_MAP_FILE = Path(__file__).resolve().parent.parent / "event_channel_map.json"
 
-# Maps message_id -> channel_id (for ForceReply context)
+# Maps message_id -> channel_id (for ForceReply context, in-memory is fine)
 pending_reviews: dict[int, str] = {}
 
 # Decision log file
 DECISIONS_FILE = Path(__file__).resolve().parent.parent / "decisions.jsonl"
 
 
+def _load_map() -> dict[str, str]:
+    """Load event_channel_map from disk."""
+    if _MAP_FILE.exists():
+        try:
+            return json.loads(_MAP_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {}
+
+
+def _save_map(m: dict[str, str]):
+    """Save event_channel_map to disk."""
+    _MAP_FILE.write_text(json.dumps(m, ensure_ascii=False), encoding="utf-8")
+
+
 def register_event_channel(event_id: int, channel_id: str):
-    """Store mapping from event_id to channel_id."""
-    event_channel_map[event_id] = channel_id
+    """Store mapping from event_id to channel_id (persisted to disk)."""
+    m = _load_map()
+    m[str(event_id)] = channel_id
+    # Keep only last 200 entries to avoid unbounded growth
+    if len(m) > 200:
+        keys = sorted(m.keys(), key=int)
+        m = {k: m[k] for k in keys[-200:]}
+    _save_map(m)
 
 
 def _log_decision(channel_id: str, action: str, feedback: str = ""):
@@ -58,7 +79,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("Ungueltige Aktion.")
         return
 
-    channel_id = event_channel_map.get(event_id)
+    channel_id = _load_map().get(str(event_id))
     if not channel_id:
         await query.edit_message_text(
             query.message.text + "\n\nChannel nicht mehr gefunden — bitte im Dashboard pruefen."
