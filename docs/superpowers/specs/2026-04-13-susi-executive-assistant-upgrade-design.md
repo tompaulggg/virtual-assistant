@@ -165,11 +165,13 @@ Manifest file: `~/Susi/.file_manifest.json`
 - Modify: `susi/main.py` — register file actions + daily ingestion job
 - Modify: `susi/config.yaml` — add file actions to permissions
 
-## Feature 4: Email-Entwurf (Gmail Draft)
+## Feature 4: Email-Entwurf (GMX IMAP Draft)
 
 ### What it does
 
-Susi prepares email drafts in Thomas's Gmail. Thomas opens Gmail, reviews the draft, and clicks Send. Susi does NOT send emails directly.
+Susi prepares email drafts in Thomas's GMX email account. Thomas opens his Email-Programm, reviews the draft, and clicks Send. Susi does NOT send emails directly.
+
+**Note:** Thomas uses GMX (IMAP), not Gmail. Drafts are created via IMAP APPEND to the Drafts folder. No Gmail API needed.
 
 ### Flow
 
@@ -186,9 +188,9 @@ Susi prepares email drafts in Thomas's Gmail. Thomas opens Gmail, reviews the dr
 ### Technical
 
 - New action: `email_draft` in `susi/actions/email_draft.py`
-- Gmail API `drafts.create()` with MIME message construction
+- IMAP APPEND to GMX Drafts folder with MIME message construction
 - Attachments: read file from `~/Susi/`, encode as base64, add as MIME part
-- Scope upgrade: add `https://www.googleapis.com/auth/gmail.compose` to existing Gmail OAuth
+- Uses existing GMX IMAP credentials (GMX_EMAIL, GMX_PASSWORD) — no new auth needed
 
 ### Action Parameters
 
@@ -213,18 +215,9 @@ This is handled by Brain's existing sequential action loop — no new orchestrat
 
 ### Dependencies
 
-- Gmail API (already integrated for reading)
-- OAuth scope upgrade: `gmail.compose` (requires re-auth once — see Setup below)
+- GMX IMAP (already configured for email reading)
 - `email.mime` (Python stdlib)
-
-### Gmail OAuth Setup (one-time)
-
-Adding `gmail.compose` scope requires Thomas to re-authorize once:
-1. Delete existing token file (`~/.google/token_susi.json` or wherever stored)
-2. Restart Susi → Gmail OAuth flow triggers automatically
-3. Thomas clicks the auth URL, grants "compose" permission
-4. New token saved with both read + compose scopes
-5. This is a one-time step, documented in setup instructions
+- No new auth needed — uses existing GMX_EMAIL + GMX_PASSWORD from .env
 
 ### Files
 
