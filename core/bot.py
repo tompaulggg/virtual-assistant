@@ -101,6 +101,18 @@ class Bot:
                 "versuch's in ein paar Minuten nochmal."
             )
 
+        # Handle special return types (e.g. file_send)
+        if isinstance(response, dict) and response.get("type") == "send_file":
+            try:
+                await update.message.reply_document(
+                    document=open(response["path"], "rb"),
+                    filename=os.path.basename(response["path"]),
+                )
+            except Exception as e:
+                logger.error(f"File send error: {e}")
+                await update.message.reply_text(f"Konnte Datei nicht senden: {e}")
+            return
+
         await update.message.reply_text(response)
 
     async def handle_document(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -176,6 +188,89 @@ class Bot:
         for i in range(0, len(response), 4000):
             await update.message.reply_text(response[i:i+4000])
 
+    async def handle_voice(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = str(update.effective_user.id)
+
+        if not is_authorized(user_id, self.allowed_ids):
+            await update.message.reply_text(
+                "Hallo! Ich bin leider nur für bestimmte Personen verfügbar."
+            )
+            return
+
+        if not self.rate_limiter.check(user_id):
+            await update.message.reply_text(
+                "Du sendest gerade sehr viele Nachrichten. Warte kurz."
+            )
+            return
+
+        voice = update.message.voice or update.message.audio
+        if not voice:
+            return
+
+        # Max 15 minutes
+        if voice.duration and voice.duration > 900:
+            await update.message.reply_text(
+                "Die Sprachmemo ist zu lang (max 15 Minuten). "
+                "Schick mir bitte eine kürzere."
+            )
+            return
+
+        await update.message.chat.send_action("typing")
+        await update.message.reply_text("Höre zu...")
+
+        try:
+            import openai
+
+            tg_file = await voice.get_file()
+            file_bytes = await tg_file.download_as_bytearray()
+
+            with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as tmp:
+                tmp.write(bytes(file_bytes))
+                tmp_path = tmp.name
+
+            try:
+                client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+                with open(tmp_path, "rb") as audio_file:
+                    transcript = client.audio.transcriptions.create(
+                        model="whisper-1",
+                        file=audio_file,
+                        language="de",
+                    )
+                text = transcript.text.strip()
+            finally:
+                os.unlink(tmp_path)
+
+            if not text:
+                await update.message.reply_text(
+                    "Ich konnte nichts verstehen. Versuch's nochmal."
+                )
+                return
+
+            logger.info(f"Voice transcribed ({voice.duration}s): {text[:80]}...")
+
+            response = await self.brain.process(text, user_id)
+        except Exception as e:
+            logger.error(f"Voice error: {e}")
+            response = (
+                "Ich konnte die Sprachmemo nicht verarbeiten. "
+                "Versuch's nochmal oder schick mir einen Text."
+            )
+
+        # Handle special return types (e.g. file_send)
+        if isinstance(response, dict) and response.get("type") == "send_file":
+            try:
+                await update.message.reply_document(
+                    document=open(response["path"], "rb"),
+                    filename=os.path.basename(response["path"]),
+                )
+            except Exception as e:
+                logger.error(f"File send error: {e}")
+                await update.message.reply_text(f"Konnte Datei nicht senden: {e}")
+            return
+
+        for i in range(0, len(response), 4000):
+            await update.message.reply_text(response[i:i+4000])
+
     def _extract_pdf_text(self, pdf_bytes: bytes) -> str:
         """Extract text from PDF bytes using PyPDF2."""
         try:
@@ -200,6 +295,9 @@ class Bot:
         )
         self._app.add_handler(
             MessageHandler(filters.Document.ALL, self.handle_document)
+        )
+        self._app.add_handler(
+            MessageHandler(filters.VOICE | filters.AUDIO, self.handle_voice)
         )
         logger.info(f"{self.config.name} ist online")
         self._app.run_polling()
