@@ -11,9 +11,7 @@ SUSI_DIR = Path.home() / "Susi"
 
 ALLOWED_ROOTS = [
     str(Path.home() / "Susi"),
-    str(Path.home() / "Documents" / "Businessplan"),
-    str(Path.home() / "Documents" / "BotProjects" / "docs"),
-    str(Path.home() / "Documents" / "BotProjects" / "sops"),
+    str(Path.home() / "Documents"),
 ]
 
 
