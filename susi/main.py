@@ -105,12 +105,17 @@ def setup_scheduler(scheduler: Scheduler, bot_instance):
                         logger.error(f"Failed to send cost alert: {e}")
 
     async def morning_briefing():
+        # Fetch MC briefing data once (ACKs the event)
+        from susi.actions.morning_briefing_v2 import _fetch_briefing_event
+        mc_data = await _fetch_briefing_event()
+
         for user_id in allowed_ids:
             if not user_id.strip():
                 continue
             try:
                 text = await build_combined_briefing(
-                    user_id.strip(), todo_store, reminder_store
+                    user_id.strip(), todo_store, reminder_store,
+                    mc_data=mc_data,
                 )
                 await bot_instance.bot.send_message(
                     chat_id=user_id.strip(),

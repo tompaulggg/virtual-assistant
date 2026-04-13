@@ -9,11 +9,14 @@ logger = logging.getLogger(__name__)
 MC_URL = os.getenv("MISSION_CONTROL_URL", "http://localhost:3000")
 
 
-async def build_combined_briefing(user_id: str, todo_store, reminder_store) -> str:
-    """Build the full morning briefing combining MC data with personal todos."""
+async def build_combined_briefing(user_id: str, todo_store, reminder_store, mc_data=None) -> str:
+    """Build the full morning briefing combining MC data with personal todos.
+    mc_data can be pre-fetched to avoid ACKing the event multiple times.
+    """
     lines = ["Guten Morgen Thomas!\n"]
 
-    mc_data = await _fetch_briefing_event()
+    if mc_data is None:
+        mc_data = await _fetch_briefing_event()
 
     if mc_data:
         # Revenue
