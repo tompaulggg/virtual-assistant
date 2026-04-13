@@ -313,6 +313,90 @@ class EmailReader:
             logger.error(f"Unsubscribe search error: {e}")
             return []
 
+    def create_draft(self, to: str, subject: str, body: str, attachments: list[str] = None) -> bool:
+        """Create an email draft in GMX Drafts folder via IMAP APPEND."""
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+        from email.mime.base import MIMEBase
+        from email import encoders
+        import email.utils
+        import time
+
+        if not self.email_addr or not self.password:
+            logger.warning("Email credentials not configured")
+            return False
+
+        try:
+            # Build MIME message
+            if attachments:
+                msg = MIMEMultipart()
+                msg.attach(MIMEText(body, "plain", "utf-8"))
+
+                for filepath in attachments:
+                    if not os.path.isfile(filepath):
+                        logger.warning(f"Attachment not found: {filepath}")
+                        continue
+                    with open(filepath, "rb") as f:
+                        part = MIMEBase("application", "octet-stream")
+                        part.set_payload(f.read())
+                    encoders.encode_base64(part)
+                    part.add_header(
+                        "Content-Disposition",
+                        f"attachment; filename={os.path.basename(filepath)}",
+                    )
+                    msg.attach(part)
+            else:
+                msg = MIMEText(body, "plain", "utf-8")
+
+            msg["From"] = self.email_addr
+            msg["To"] = to
+            msg["Subject"] = subject
+            msg["Date"] = email.utils.formatdate(localtime=True)
+
+            # Connect and append to Drafts
+            mail = imaplib.IMAP4_SSL(self.server, 993)
+            mail.login(self.email_addr, self.password)
+
+            # GMX uses various folder names — try common ones
+            draft_folder = None
+            for folder_name in ["Drafts", "Entw&APw-rfe", "INBOX.Drafts", "INBOX.Entwuerfe"]:
+                status, _ = mail.select(folder_name)
+                if status == "OK":
+                    draft_folder = folder_name
+                    break
+
+            if not draft_folder:
+                # List all folders to find drafts
+                _, folders = mail.list()
+                for f in (folders or []):
+                    f_str = f.decode() if isinstance(f, bytes) else f
+                    if "draft" in f_str.lower() or "entwu" in f_str.lower():
+                        parts = f_str.split('"')
+                        if len(parts) >= 4:
+                            draft_folder = parts[-2]
+                            break
+
+            if not draft_folder:
+                logger.error("Could not find Drafts folder on IMAP server")
+                mail.logout()
+                return False
+
+            mail.select(draft_folder)
+            mail.append(
+                draft_folder,
+                "\\Draft",
+                imaplib.Time2Internaldate(time.time()),
+                msg.as_bytes(),
+            )
+            mail.logout()
+
+            logger.info(f"Draft created: To={to}, Subject={subject}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Draft creation failed: {e}")
+            return False
+
     def classify_importance(self, emails: list[dict]) -> list[dict]:
         """Classify emails as important/newsletter/spam using Haiku."""
         if not emails:

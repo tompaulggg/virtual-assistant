@@ -29,7 +29,7 @@ from core import AssistantConfig, Brain, Bot, Scheduler
 # Reuse shared actions from Lena
 from lena.actions import ghostwriter, todos, reminders, knowledge, briefing
 # Susi-specific actions
-from susi.actions import projects, ideas, claudia_bridge, email_sync, calendar_sync, web_search, file_access, file_ingestion
+from susi.actions import projects, ideas, claudia_bridge, email_sync, calendar_sync, web_search, file_access, file_ingestion, email_draft
 from susi.actions import event_poller, event_handlers, inline_buttons
 from susi.actions.morning_briefing_v2 import build_combined_briefing
 
@@ -39,7 +39,7 @@ def register_actions(brain: Brain):
     # Shared actions
     shared = [ghostwriter, todos, reminders, knowledge, briefing]
     # Susi-only actions
-    susi_only = [projects, ideas, claudia_bridge, email_sync, calendar_sync, web_search, file_access, file_ingestion]
+    susi_only = [projects, ideas, claudia_bridge, email_sync, calendar_sync, web_search, file_access, file_ingestion, email_draft]
 
     for module in shared + susi_only:
         for action_def in module.register():

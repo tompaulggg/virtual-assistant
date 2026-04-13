@@ -59,6 +59,7 @@ permissions:
     - file_ingest
   requires_confirmation:
     - send_email
+    - email_draft
     - delete_data
 
 scheduler:
