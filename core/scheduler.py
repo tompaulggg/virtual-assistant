@@ -10,7 +10,7 @@ class Scheduler:
         self.jobs: list[str] = []
 
     def add_cron(self, name: str, func, **cron_kwargs):
-        job = self.scheduler.add_job(func, "cron", id=name, **cron_kwargs)
+        job = self.scheduler.add_job(func, "cron", id=name, misfire_grace_time=300, **cron_kwargs)
         self.jobs.append(name)
         logger.info(f"Scheduled cron job: {name}")
         return job
